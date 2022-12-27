@@ -128,7 +128,6 @@ search_anime() {
 	[ -z "$query" ] && get_input
 	anime_list=$(curl -s -X POST "$anilist_base" \
 		-H 'Content-Type: application/json' \
-		-H 'Authorization: Bearer '"$access_token"'' \
 		-d "{\"query\":\"query(\$page:Int = 1 \$id:Int \$type:MediaType \$isAdult:Boolean = false \$search:String \$format:[MediaFormat]\$status:MediaStatus \$countryOfOrigin:CountryCode \$source:MediaSource \$season:MediaSeason \$seasonYear:Int \$year:String \$onList:Boolean \$yearLesser:FuzzyDateInt \$yearGreater:FuzzyDateInt \$episodeLesser:Int \$episodeGreater:Int \$durationLesser:Int \$durationGreater:Int \$chapterLesser:Int \$chapterGreater:Int \$volumeLesser:Int \$volumeGreater:Int \$licensedBy:[Int]\$isLicensed:Boolean \$genres:[String]\$excludedGenres:[String]\$tags:[String]\$excludedTags:[String]\$minimumTagRank:Int \$sort:[MediaSort]=[POPULARITY_DESC,SCORE_DESC]){Page(page:\$page,perPage:20){pageInfo{total perPage currentPage lastPage hasNextPage}media(id:\$id type:\$type season:\$season format_in:\$format status:\$status countryOfOrigin:\$countryOfOrigin source:\$source search:\$search onList:\$onList seasonYear:\$seasonYear startDate_like:\$year startDate_lesser:\$yearLesser startDate_greater:\$yearGreater episodes_lesser:\$episodeLesser episodes_greater:\$episodeGreater duration_lesser:\$durationLesser duration_greater:\$durationGreater chapters_lesser:\$chapterLesser chapters_greater:\$chapterGreater volumes_lesser:\$volumeLesser volumes_greater:\$volumeGreater licensedById_in:\$licensedBy isLicensed:\$isLicensed genre_in:\$genres genre_not_in:\$excludedGenres tag_in:\$tags tag_not_in:\$excludedTags minimumTagRank:\$minimumTagRank sort:\$sort isAdult:\$isAdult){id title{userPreferred}coverImage{extraLarge large color}startDate{year month day}endDate{year month day}bannerImage season seasonYear description type format status(version:2)episodes duration chapters volumes genres isAdult averageScore popularity nextAiringEpisode{airingAt timeUntilAiring episode}mediaListEntry{id status}studios(isMain:true){edges{isMain node{id name}}}}}}\",\"variables\":{\"page\":1,\"type\":\"ANIME\",\"sort\":\"SEARCH_MATCH\",\"search\":\"$query\"}}" |
 		tr "\[|\]" "\n" | sed -nE "s@.*\"id\":([0-9]*),.*\"userPreferred\":\"(.*)\"\},\"coverImage\".*\"episodes\":([0-9]*).*@\2 (\3 episodes)\t[\1]@p" | nth "\$1" | sed -nE "s@(.*) \(([0-9]*) episodes\).*\[([0-9]*)\]@\1\t\2\t\3@p")
 	anime_title=$(printf "%s" "$anime_list" | cut -f1)
@@ -315,7 +314,22 @@ watch_anime() {
 	play_video
 }
 
-params="$(getopt -o n:l:p:jcdDelqih -l number:,language:,provider:,json,continue,discord,dmenu,edit,quality,incognito,help --name "$(basename "$0")" -- "$@")"
+update_script() {
+	update=$(curl -s "https://raw.githubusercontent.com/justchokingaround/jerry/master/jerry.sh" || die "Connection error")
+	update="$(printf '%s\n' "$update" | diff -u "$(which jerry)" -)"
+	if [ -z "$update" ]; then
+		printf "Script is up to date :)\n"
+	else
+		if printf '%s\n' "$update" | patch "$(which jerry)" -; then
+			printf "Script has been updated\n"
+		else
+			printf "Can't update for some reason!\n"
+		fi
+	fi
+	exit 0
+}
+
+params="$(getopt -o n:l:p:jcdDelqiuh -l number:,language:,provider:,json,continue,discord,dmenu,edit,quality,incognito,update,help --name "$(basename "$0")" -- "$@")"
 
 eval set -- "$params"
 unset params
@@ -332,6 +346,7 @@ while true; do
 	-l | --language) subs_language="$2" && shift ;;
 	-p | --provider) provider="$2" && shift ;;
 	-j | --json) json_output="true" ;;
+	-u | --update) update_script ;;
 	-h | --help) usage && exit 0 ;;
 	--) shift && break ;;
 	*) printf "Invalid option: %s" "$1" && usage && exit 1 ;;
@@ -367,10 +382,9 @@ case "$choice" in
 	search_anime
 	anime_info="$(curl -s -X POST "$anilist_base" \
 		-H 'Content-Type: application/json' \
-		-H 'Authorization: Bearer '"$access_token"'' \
 		-d "{\"query\":\"query media(\$id:Int,\$type:MediaType,\$isAdult:Boolean){Media(id:\$id,type:\$type,isAdult:\$isAdult){id title{userPreferred romaji english native}coverImage{extraLarge large}bannerImage startDate{year month day}endDate{year month day}description season seasonYear type format status(version:2)episodes duration chapters volumes genres synonyms source(version:3)isAdult isLocked meanScore averageScore popularity favourites isFavouriteBlocked hashtag countryOfOrigin isLicensed isFavourite isRecommendationBlocked isFavouriteBlocked isReviewBlocked nextAiringEpisode{airingAt timeUntilAiring episode}relations{edges{id relationType(version:2)node{id title{userPreferred}format type status(version:2)bannerImage coverImage{large}}}}characterPreview:characters(perPage:6,sort:[ROLE,RELEVANCE,ID]){edges{id role name voiceActors(language:JAPANESE,sort:[RELEVANCE,ID]){id name{userPreferred}language:languageV2 image{large}}node{id name{userPreferred}image{large}}}}staffPreview:staff(perPage:8,sort:[RELEVANCE,ID]){edges{id role node{id name{userPreferred}language:languageV2 image{large}}}}studios{edges{isMain node{id name}}}reviewPreview:reviews(perPage:2,sort:[RATING_DESC,ID]){pageInfo{total}nodes{id summary rating ratingAmount user{id name avatar{large}}}}recommendations(perPage:7,sort:[RATING_DESC,ID]){pageInfo{total}nodes{id rating userRating mediaRecommendation{id title{userPreferred}format type status(version:2)bannerImage coverImage{large}}user{id name avatar{large}}}}externalLinks{id site url type language color icon notes isDisabled}streamingEpisodes{site title thumbnail url}trailer{id site}rankings{id rank type format year season allTime context}tags{id name description rank isMediaSpoiler isGeneralSpoiler userId}mediaListEntry{id status score}stats{statusDistribution{status amount}scoreDistribution{score amount}}}}\",\"variables\":{\"id\":$media_id,\"type\":\"ANIME\"}}" |
-		tr '{|}' '\n' | sed -nE "s@.*\"description\":\"(.*)\",\"season\".*@\1@p" | sed "s@\\\@@g")"
-	printf "%s" "$anime_info" | "$display"
+		tr '{|}' '\n' | sed -nE "s@.*\"description\":\"(.*)\",\"season\".*@\1@p" | sed "s@\\\@@g")" ||
+		printf "%s" "$anime_info" | "$display"
 	;;
 "Watch New")
 	search_anime
