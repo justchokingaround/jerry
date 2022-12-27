@@ -36,6 +36,8 @@ usage() {
       Specify the provider to watch from (default: zoro) (currently supported: zoro, crunchyroll, gogoanime)
     -j, --json
       Outputs the json containing video links, subtitle links and referrers to stdout
+    -u, --update
+        Update the script
     -h, --help
       Show this help message and exit
 
