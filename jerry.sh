@@ -1,6 +1,8 @@
 #!/bin/sh
 # shellcheck disable=SC2154,SC2086,SC1090
 
+JERRY_VERSION=1.0.0
+
 anilist_base="https://graphql.anilist.co"
 config_file="$HOME/.config/jerry/jerry.conf"
 cache_dir="$HOME/.cache/jerry"
@@ -42,6 +44,8 @@ usage() {
       Specify the video quality
     -u, --update
       Update the script
+    -v, --version
+      Show the version of the script
 
     Note: 
       All arguments can be specified in the config file as well.
@@ -351,6 +355,7 @@ while [ $# -gt 0 ]; do
 	-p | --provider) preferred_provider="$2" && shift 2 ;;
 	-q | --quality) video_quality="$2" && shift 2 ;;
 	-u | --update) update_script ;;
+	-v | --version) printf "Jerry Version: %s\n" "$JERRY_VERSION" && exit 0 ;;
 	*) query="$(printf "%s" "$query $1" | sed "s/^ //;s/ /+/g")" && shift && choice="Watch New" ;;
 	esac
 done
