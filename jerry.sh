@@ -5,6 +5,8 @@ anilist_base="https://graphql.anilist.co"
 config_file="$HOME/.config/jerry/jerry.conf"
 cache_dir="$HOME/.cache/jerry"
 command -v bat >/dev/null 2>&1 && display="bat" || display="less"
+[ -f "$config_file" ] && . "${config_file}" && [ -z "$jerry_editor" ] && jerry_editor=${VISUAL:-${EDITOR:-vim}}
+default_config="discord_presence=false\npreferred_provider=zoro\nsubs_language=English\nuse_external_menu=0\nvideo_quality=best\nhistory_file=$HOME/.cache/anime_history\njerry_editor=$jerry_editor"
 case "$(uname -s)" in
 MINGW* | *Msys) separator=';' && path_thing='' ;;
 *) separator=':' && path_thing="\\" ;;
@@ -17,40 +19,44 @@ usage() {
 
   Options:
     -c, --continue
-      Continue watching from currently watching list
-    -e, --edit
-      Edit config file using \$EDITOR
+      Continue watching from currently watching list (using the user's anilist account)
     -d, --discord
-      Display currently watching anime in Discord Rich Presence
+      Display currently watching anime in Discord Rich Presence (jerrydiscordpresence.py is required for this, check the readme for instructions on how to install it)
     -D, --dmenu
-      Use an external menu (instead of the default fzf) to select an anime
-    -n, --number
-      Specify the episode number for an anime
-    -q, --quality
-      Specify the video quality
-    -i, --incognito
-      Watch in incognito mode (nothing is pushed to anilist, and no progress is locally saved)
-    -l, --language
-      Specify the subtitle language
-    -p, --provider
-      Specify the provider to watch from (default: zoro) (currently supported: zoro, crunchyroll, gogoanime)
-    -j, --json
-      Outputs the json containing video links, subtitle links and referrers to stdout
-    -u, --update
-        Update the script
+      Use an external menu (instead of the default fzf) to select an anime (default one is rofi, but this can be specified in the config file)
+    -e, --edit
+      Edit config file using an editor defined with jerry_editor in the config (\$EDITOR by default)
     -h, --help
       Show this help message and exit
+    -i, --incognito
+      Watch in incognito mode (nothing is pushed to anilist, and no progress is locally saved)
+    -j, --json
+      Outputs the json containing video links, subtitle links, referrers etc. to stdout
+    -l, --language
+      Specify the subtitle language
+    -n, --number
+      Specify the episode number for an anime
+    -p, --provider
+      Specify the provider to watch from (default: zoro) (currently supported: zoro, crunchyroll, gogoanime)
+    -q, --quality
+      Specify the video quality
+    -u, --update
+      Update the script
 
     Note: 
       All arguments can be specified in the config file as well.
       If an argument is specified in both the config file and the command line, the command line argument will be used.
+
+    Some example usages:
+     ${0##*/} -q 720p banana fish
+     ${0##*/} -l spanish cyberpunk edgerunners -i -n 2
+     ${0##*/} -l spanish cyberpunk edgerunners --number 2 --json
 
 " "${0##*/}"
 }
 
 configuration() {
 	[ ! -d "$HOME/.config/jerry" ] && mkdir -p "$HOME/.config/jerry"
-	[ -f "$config_file" ] && . "${config_file}"
 	[ -z "$discord_presence" ] && discord_presence="false"
 	[ -z "$preferred_provider" ] && provider="zoro" || provider="$preferred_provider"
 	[ -z "$subs_language" ] && subs_language="English"
@@ -331,37 +337,27 @@ update_script() {
 	exit 0
 }
 
-params="$(getopt -o n:l:p:jcdDelqiuh -l number:,language:,provider:,json,continue,discord,dmenu,edit,quality,incognito,update,help --name "$(basename "$0")" -- "$@")"
-
-eval set -- "$params"
-unset params
-
-while true; do
-	case $1 in
-	-c | --continue) choice="Watch" ;;
-	-d | --discord) discord_presence="true" ;;
-	-D | --dmenu) use_external_menu="1" ;;
-	-e | --edit) "$EDITOR" "$config_file" && exit 0 ;;
-	-n | --number) progress=$(($2 - 1)) && shift ;;
-	-q | --quality) video_quality="$3" ;;
-	-i | --incognito) incognito="true" ;;
-	-l | --language) subs_language="$2" && shift ;;
-	-p | --provider) provider="$2" && shift ;;
-	-j | --json) json_output="true" ;;
-	-u | --update) update_script ;;
+while [ $# -gt 0 ]; do
+	case "$1" in
+	-c | --continue) choice="Watch" && shift ;;
+	-d | --discord) discord_presence="true" && shift ;;
+	-D | --dmenu) use_external_menu="1" && shift ;;
+	-e | --edit) [ -f "$config_file" ] && "$jerry_editor" "$config_file" && exit 0 || echo "$default_config" >"$config_file" && "$jerry_editor" "$config_file" && exit 0 ;;
 	-h | --help) usage && exit 0 ;;
-	--) shift && break ;;
-	*) printf "Invalid option: %s" "$1" && usage && exit 1 ;;
+	-i | --incognito) incognito="true" && shift ;;
+	-j | --json) json_output="true" && incognito="true" && shift ;;
+	-l | --language) subs_language="$2" && shift 2 ;;
+	-n | --number) progress=$(($2 - 1)) && shift 2 ;;
+	-p | --provider) preferred_provider="$2" && shift 2 ;;
+	-q | --quality) video_quality="$2" && shift 2 ;;
+	-u | --update) update_script ;;
+	*) query="$(printf "%s" "$query $1" | sed "s/^ //;s/ /+/g")" && shift && choice="Watch New" ;;
 	esac
-	shift
 done
 
 [ "$incognito" = "true" ] || check_credentials
 configuration
-
 [ "$(printf "%s" "$subs_language" | head -c 1)" = "$(printf "%s" "$subs_language" | head -c 1 | tr '[:upper:]' '[:lower:]')" ] && subs_language="$(printf "%s" "$subs_language" | head -c 1 | tr '[:lower:]' '[:upper:]')$(printf "%s" "$subs_language" | tail -c +2)"
-[ -n "$1" ] && [ -z "$choice" ] && choice="Watch New" && query="$*"
-query=$(printf "%s" "$query" | tr " " "+")
 
 [ -z "$choice" ] && choice=$(printf "Watch\nUpdate\nInfo\nWatch New" | launcher "Choose an option: ")
 case "$choice" in
