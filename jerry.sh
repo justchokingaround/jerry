@@ -73,7 +73,7 @@ check_credentials() {
 	[ ! -d "$cache_dir" ] && mkdir -p "$cache_dir"
 	[ -f "$cache_dir/anilist_token.txt" ] && access_token=$(cat "$cache_dir/anilist_token.txt")
 	[ -z "$access_token" ] && printf "Paste your access token from this page:
-https://anilist.co/api/v2/oauth/authorize?client_id=9857&response_type=token: " && read -r access_token &&
+https://anilist.co/api/v2/oauth/authorize?client_id=9857&response_type=token : " && read -r access_token &&
 		echo "$access_token" >"$cache_dir/anilist_token.txt"
 	[ -f "$cache_dir/anilist_user_id.txt" ] && user_id=$(cat "$cache_dir/anilist_user_id.txt")
 	[ -z "$user_id" ] &&
