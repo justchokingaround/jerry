@@ -61,6 +61,7 @@ usage() {
 
 configuration() {
 	[ ! -d "$HOME/.config/jerry" ] && mkdir -p "$HOME/.config/jerry"
+	[ -f "$config_file" ] && . "${config_file}"
 	[ -z "$discord_presence" ] && discord_presence="false"
 	[ -z "$preferred_provider" ] && provider="zoro" || provider="$preferred_provider"
 	[ -z "$subs_language" ] && subs_language="English"
