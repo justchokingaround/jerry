@@ -61,7 +61,6 @@ usage() {
 
 configuration() {
 	[ ! -d "$HOME/.config/jerry" ] && mkdir -p "$HOME/.config/jerry"
-	[ -f "$config_file" ] && . "${config_file}"
 	[ -z "$discord_presence" ] && discord_presence="false"
 	[ -z "$preferred_provider" ] && provider="zoro" || provider="$preferred_provider"
 	[ -z "$subs_language" ] && subs_language="English"
@@ -342,7 +341,6 @@ update_script() {
 	exit 0
 }
 
-configuration
 while [ $# -gt 0 ]; do
 	case "$1" in
 	-c | --continue) choice="Watch" && shift ;;
@@ -363,6 +361,7 @@ while [ $# -gt 0 ]; do
 done
 
 [ "$incognito" = "true" ] || check_credentials
+configuration
 [ "$(printf "%s" "$subs_language" | head -c 1)" = "$(printf "%s" "$subs_language" | head -c 1 | tr '[:upper:]' '[:lower:]')" ] && subs_language="$(printf "%s" "$subs_language" | head -c 1 | tr '[:lower:]' '[:upper:]')$(printf "%s" "$subs_language" | tail -c +2)"
 
 [ -z "$choice" ] && choice=$(printf "Watch\nUpdate\nInfo\nWatch New" | launcher "Choose an option: ")
