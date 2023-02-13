@@ -11,8 +11,8 @@ Jerry is a command line tool for streaming anime from various providers. It can 
 - [Credits](#credits)
 
 ## Features
-- Search for and stream anime from various providers (currently supported: zoro, crunchyroll, gogoanime) (default: zoro)
-  (some providers, such as zoro and crunchyroll, have support for external subtitles which allows more freedom)
+- Search for and stream anime from various providers (currently supported: zoro, gogoanime) (default: zoro)
+  (some providers, such as zoro and have support for external subtitles which allows more freedom)
 - Continue watching anime from different lists from Anilist (current, completed, on hold, dropped, plan to watch)
 - Customize subtitle language, video quality, and provider (using arguments or config file)
 - Edit the configuration file using the command line
@@ -72,7 +72,7 @@ Options:
   -n, --number
     Specify the episode number for an anime
   -p, --provider
-    Specify the provider to watch from (default: zoro) (currently supported: zoro, crunchyroll, gogoanime)
+    Specify the provider to watch from (default: zoro) (currently supported: zoro, gogoanime)
   -q, --quality
     Specify the video quality
   -u, --update
@@ -106,7 +106,7 @@ Here is an example of a more advanced configuration:
 ```sh
 use_external_menu=1
 discord_presence="true"
-preferred_provider="crunchyroll"
+preferred_provider="gogoanime"
 opt_fzf_args="--cycle --reverse"
 subs_language="russian"
 
