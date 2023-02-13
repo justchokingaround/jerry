@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2154,SC2086,SC1090
 
-JERRY_VERSION=1.0.0
+JERRY_VERSION=1.1.0
 
 anilist_base="https://graphql.anilist.co"
 config_file="$HOME/.config/jerry/jerry.conf"
@@ -13,6 +13,12 @@ case "$(uname -s)" in
 MINGW* | *Msys) separator=';' && path_thing='' ;;
 *) separator=':' && path_thing="\\" ;;
 esac
+dep_ch() {
+	for dep; do
+		command -v "$dep" >/dev/null || notify-send "Program \"$dep\" not found. Please install it."
+	done
+}
+dep_ch "grep" "sed" "awk" "curl" "fzf" "mpv" || true
 
 usage() {
 	printf "
@@ -39,7 +45,7 @@ usage() {
     -n, --number
       Specify the episode number for an anime
     -p, --provider
-      Specify the provider to watch from (default: zoro) (currently supported: zoro, crunchyroll, gogoanime)
+      Specify the provider to watch from (default: zoro) (currently supported: zoro, gogoanime)
     -q, --quality
       Specify the video quality
     -u, --update
@@ -224,10 +230,6 @@ get_video_url_quality() {
 get_episode_info() {
 	anime_response=$(curl -s "https://api.consumet.org/meta/anilist/info/${media_id}?provider=${provider}" | tr "{|}" "\n")
 	case $provider in
-	crunchyroll)
-		episode_info=$(printf "%s" "$anime_response" | sed -nE "s@.*\"id\":\"([^\"]*)\",\"number\":$((progress + 1)),\"type\":\"Subbed\",\"title\":\"([^\"]*)\",.*@\1\t\2@p" | head -1)
-		[ -z "$episode_info" ] && episode_info=$(printf "%s" "$anime_response" | sed -nE "s@.*\"id\":\"([^\"]*)\",.*\"number\":$((progress + 1)),.*@\1@p" | head -1)
-		;;
 	zoro)
 		episode_info=$(printf "%s" "$anime_response" | sed -nE "s@\"id\":\"([^\"]*)\",\"title\":\"([^\"]*)\",.*\"number\":$((progress + 1)).*@\1\t\2@p" | head -1)
 		[ -z "$episode_info" ] && episode_info=$(printf "%s" "$anime_response" | sed -nE "s@.*\"id\":\"([^\"]*)\",.*\"number\":$((progress + 1)),.*@\1@p" | head -1)
@@ -248,11 +250,6 @@ get_episode_links() {
 	send_notification "Watching $anime_title - Ep: $((progress + 1)) $episode_title"
 
 	case $provider in
-	crunchyroll)
-		video_link=$(printf "%s" "$episode_links" | sed -nE "s@.*,\"sources\":\[\{\"isM3U8\":true,\"url\":\"(.*)\"\}\]\}@\1@p")
-		subs_links=$(printf "%s" "$episode_links" | tr "{|}" "\n" | sed -nE "s@\"lang\":\"(.*$subs_language)\".*\"url\":\"([^\"]*)\".*@\2@p" | sed -e "s/:/\\$path_thing:/g")
-		[ -z "$subs_links" ] && subs_links=$(printf "%s" "$episode_links" | tr "{|}" "\n" | sed -nE "s@\"lang\":\"(.*English)\".*\"url\":\"([^\"]*)\".*@\2@p" | sed -e "s/:/\\$path_thing:/g")
-		;;
 	zoro)
 		# [ "$video_quality" = "best" ] && video_link=$(printf "%s" "$episode_links"|sed -nE "s@\{\"sources\":\[\{\"url\":\"([^\"]*)\",.*@\1@p")
 		[ -z "$video_link" ] && get_video_url_quality "$video_quality"
@@ -261,7 +258,7 @@ get_episode_links() {
 				get_video_url_quality "$quality"
 				[ -n "$video_link" ] && break
 			done
-		[ -z "$video_link" ] && provider="gogoanime" && send_notification "No video links found from zoro, trying gogoanime" && get_episode_info
+		[ -z "$video_link" ] && provider="gogoanime" && send_notification "No video links found from zoro, trying gogoanime" && provider="gogoanime" && get_episode_info
 		subs_links=$(printf "%s" "$episode_links" | tr "{|}" "\n" | tr "{|}" "\n" | sed -nE "s@\"url\":\"([^\"]*.vtt)\",\"lang\":\"$subs_language.*@\1@p" | sed -e "s/:/\\$path_thing:/g" -e "H;1h;\$!d;x;y/\n/$separator/" -e "s/$separator\$//")
 		[ -z "$subs_links" ] && subs_links=$(printf "%s" "$episode_links" | tr "{|}" "\n" | tr "{|}" "\n" | sed -nE "s@\"url\":\"([^\"]*.vtt)\",\"lang\":\"English.*@\1@p" | sed -e "s/:/\\$path_thing:/g" -e "H;1h;\$!d;x;y/\n/$separator/" -e "s/$separator\$//")
 		;;
@@ -303,19 +300,16 @@ play_video() {
 	fi
 }
 
-switch_provider() {
-	case $provider in
-	zoro) provider="crunchyroll" && send_notification "Episode not found on zoro, trying crunchyroll" ;;
-	crunchyroll) provider="gogoanime" && send_notification "Episode not found on crunchyroll, trying gogoanime" ;;
-	*) provider="zoro" && send_notification "Episode not found on gogoanime, trying zoro" ;;
-	esac
+get_anime_info() {
+	anime_info="$(curl -s -X POST "$anilist_base" \
+		-H 'Content-Type: application/json' \
+		-d "{\"query\":\"query media(\$id:Int,\$type:MediaType,\$isAdult:Boolean){Media(id:\$id,type:\$type,isAdult:\$isAdult){id title{userPreferred romaji english native}coverImage{extraLarge large}bannerImage startDate{year month day}endDate{year month day}description season seasonYear type format status(version:2)episodes duration chapters volumes genres synonyms source(version:3)isAdult isLocked meanScore averageScore popularity favourites isFavouriteBlocked hashtag countryOfOrigin isLicensed isFavourite isRecommendationBlocked isFavouriteBlocked isReviewBlocked nextAiringEpisode{airingAt timeUntilAiring episode}relations{edges{id relationType(version:2)node{id title{userPreferred}format type status(version:2)bannerImage coverImage{large}}}}characterPreview:characters(perPage:6,sort:[ROLE,RELEVANCE,ID]){edges{id role name voiceActors(language:JAPANESE,sort:[RELEVANCE,ID]){id name{userPreferred}language:languageV2 image{large}}node{id name{userPreferred}image{large}}}}staffPreview:staff(perPage:8,sort:[RELEVANCE,ID]){edges{id role node{id name{userPreferred}language:languageV2 image{large}}}}studios{edges{isMain node{id name}}}reviewPreview:reviews(perPage:2,sort:[RATING_DESC,ID]){pageInfo{total}nodes{id summary rating ratingAmount user{id name avatar{large}}}}recommendations(perPage:7,sort:[RATING_DESC,ID]){pageInfo{total}nodes{id rating userRating mediaRecommendation{id title{userPreferred}format type status(version:2)bannerImage coverImage{large}}user{id name avatar{large}}}}externalLinks{id site url type language color icon notes isDisabled}streamingEpisodes{site title thumbnail url}trailer{id site}rankings{id rank type format year season allTime context}tags{id name description rank isMediaSpoiler isGeneralSpoiler userId}mediaListEntry{id status score}stats{statusDistribution{status amount}scoreDistribution{score amount}}}}\",\"variables\":{\"id\":$media_id,\"type\":\"ANIME\"}}" |
+		tr '{|}' '\n' | sed -nE "s@.*\"description\":\"(.*)\",\"season\".*@\1@p" | sed -e "s@\\\@@g" -e "s@<br>n@\n@g" -e "s@<br>@@g")"
 }
 
 watch_anime() {
 	get_episode_info
-	[ -z "$episode_info" ] && switch_provider && get_episode_info
-	[ -z "$episode_info" ] && switch_provider && get_episode_info
-	[ -z "$episode_info" ] && send_notification "Error: $query not found" && exit 1
+	[ -z "$episode_info" ] && send_notification "Error: $query not found on $provider" && exit 1
 
 	episode_id=$(printf "%s" "$episode_info" | cut -f1)
 	episode_title=$(printf "%s" "$episode_info" | cut -f2 | sed "s@\\\@@g")
@@ -384,11 +378,18 @@ case "$choice" in
 	;;
 "Info")
 	search_anime
-	anime_info="$(curl -s -X POST "$anilist_base" \
-		-H 'Content-Type: application/json' \
-		-d "{\"query\":\"query media(\$id:Int,\$type:MediaType,\$isAdult:Boolean){Media(id:\$id,type:\$type,isAdult:\$isAdult){id title{userPreferred romaji english native}coverImage{extraLarge large}bannerImage startDate{year month day}endDate{year month day}description season seasonYear type format status(version:2)episodes duration chapters volumes genres synonyms source(version:3)isAdult isLocked meanScore averageScore popularity favourites isFavouriteBlocked hashtag countryOfOrigin isLicensed isFavourite isRecommendationBlocked isFavouriteBlocked isReviewBlocked nextAiringEpisode{airingAt timeUntilAiring episode}relations{edges{id relationType(version:2)node{id title{userPreferred}format type status(version:2)bannerImage coverImage{large}}}}characterPreview:characters(perPage:6,sort:[ROLE,RELEVANCE,ID]){edges{id role name voiceActors(language:JAPANESE,sort:[RELEVANCE,ID]){id name{userPreferred}language:languageV2 image{large}}node{id name{userPreferred}image{large}}}}staffPreview:staff(perPage:8,sort:[RELEVANCE,ID]){edges{id role node{id name{userPreferred}language:languageV2 image{large}}}}studios{edges{isMain node{id name}}}reviewPreview:reviews(perPage:2,sort:[RATING_DESC,ID]){pageInfo{total}nodes{id summary rating ratingAmount user{id name avatar{large}}}}recommendations(perPage:7,sort:[RATING_DESC,ID]){pageInfo{total}nodes{id rating userRating mediaRecommendation{id title{userPreferred}format type status(version:2)bannerImage coverImage{large}}user{id name avatar{large}}}}externalLinks{id site url type language color icon notes isDisabled}streamingEpisodes{site title thumbnail url}trailer{id site}rankings{id rank type format year season allTime context}tags{id name description rank isMediaSpoiler isGeneralSpoiler userId}mediaListEntry{id status score}stats{statusDistribution{status amount}scoreDistribution{score amount}}}}\",\"variables\":{\"id\":$media_id,\"type\":\"ANIME\"}}" |
-		tr '{|}' '\n' | sed -nE "s@.*\"description\":\"(.*)\",\"season\".*@\1@p" | sed "s@\\\@@g")" ||
-		printf "%s" "$anime_info" | "$display"
+	if command -v zenity >/dev/null 2>&1; then
+		zenity --progress --text="Waiting for an answer" --pulsate &
+		[ $? -eq 1 ] && exit 1
+		PID=$!
+		get_anime_info
+		[ -z "$anime_info" ] && notify-send "No description found" && exit 0
+		kill $PID
+		zenity --info --text="$anime_info"
+	else
+		notify-send -t 1000 "zenity is not installed, using $display instead" && printf "%s" "$anime_info" | $display
+		printf "%s" "$anime_info" | $display
+	fi
 	;;
 "Watch New")
 	search_anime
