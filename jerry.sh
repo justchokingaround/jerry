@@ -1,14 +1,14 @@
 #!/bin/sh
 # shellcheck disable=SC2154,SC2086,SC1090
 
-JERRY_VERSION=1.2.0
+JERRY_VERSION=1.2.1
 
 anilist_base="https://graphql.anilist.co"
 config_file="$HOME/.config/jerry/jerry.conf"
 cache_dir="$HOME/.cache/jerry"
 command -v bat >/dev/null 2>&1 && display="bat" || display="less"
-[ -f "$config_file" ] && . "${config_file}" && [ -z "$jerry_editor" ] && jerry_editor=${VISUAL:-${EDITOR:-vim}}
-default_config="discord_presence=false\npreferred_provider=zoro\nsubs_language=English\nuse_external_menu=0\nvideo_quality=best\nhistory_file=$HOME/.cache/anime_history\njerry_editor=$jerry_editor"
+jerry_editor=${VISUAL:-${EDITOR:-vim}}
+default_config="discord_presence=false\nprovider=zoro\nsubs_language=English\nuse_external_menu=0\nvideo_quality=best\nhistory_file=$HOME/.cache/anime_history\njerry_editor=$jerry_editor"
 case "$(uname -s)" in
 MINGW* | *Msys) separator=';' && path_thing='' ;;
 *) separator=':' && path_thing="\\" ;;
@@ -259,7 +259,7 @@ get_episode_links() {
 		video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | sed -nE "s_.*\"sources\":\"([^\"]*)\".*_\1_p" | base64 -d |
 			openssl enc -aes-256-cbc -d -md md5 -k "$key" 2>/dev/null | sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p")
 		[ -z "$video_link" ] && provider="gogoanime" && send_notification "No video links found from zoro, trying gogoanime" && provider="gogoanime" && get_episode_info
-		episode_links=$(printf "$json_data" | sed -E "s@sources\":\"[^\"]*\"@sources\":\"$video_link\"@")
+		episode_links=$(printf "%s" "$json_data" | sed -E "s@sources\":\"[^\"]*\"@sources\":\"$video_link\"@")
 		;;
 	gogoanime)
 		episode_links=$(curl -s "https://api.consumet.org/meta/anilist/watch/${episode_id}?provider=${provider}")

@@ -95,7 +95,7 @@ Jerry can be customized through the configuration file `$HOME/.config/jerry/jerr
 The configuration file has the following format, (example of the default configuration):
 ```sh
 discord_presence=false
-preferred_provider=zoro
+provider=zoro
 subs_language=English
 use_external_menu=0
 video_quality=best
@@ -106,7 +106,7 @@ Here is an example of a more advanced configuration:
 ```sh
 use_external_menu=1
 discord_presence="true"
-preferred_provider="gogoanime"
+provider="gogoanime"
 opt_fzf_args="--cycle --reverse"
 subs_language="russian"
 
