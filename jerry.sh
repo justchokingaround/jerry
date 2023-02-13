@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2154,SC2086,SC1090
 
-JERRY_VERSION=1.1.0
+JERRY_VERSION=1.2.0
 
 anilist_base="https://graphql.anilist.co"
 config_file="$HOME/.config/jerry/jerry.conf"
@@ -242,7 +242,29 @@ get_episode_info() {
 }
 
 get_episode_links() {
-	episode_links=$(curl -s "https://api.consumet.org/meta/anilist/watch/${episode_id}?provider=${provider}")
+	case $provider in
+	zoro)
+		episode_id=$(printf "%s" "$episode_id" | sed -nE 's@.*episode\$([0-9]*)\$.*@\1@p')
+		source_id=$(curl -s "https://zoro.to/ajax/v2/episode/servers?episodeId=$episode_id" | tr "<|>" "\n" | sed -nE 's_.*data-id=\\"([^"]*)\\".*_\1_p' | head -1)
+		embed_link=$(curl -s "https://zoro.to/ajax/v2/episode/sources?id=$source_id" | sed -nE "s_.*\"link\":\"([^\"]*)\".*_\1_p")
+
+		# get the juicy links
+		parse_embed=$(printf "%s" "$embed_link" | sed -nE "s_(.*)/embed-(4|6)/(.*)\?vast=1\$_\1\t\2\t\3_p")
+		provider_link=$(printf "%s" "$parse_embed" | cut -f1)
+		source_id=$(printf "%s" "$parse_embed" | cut -f3)
+		embed_type=$(printf "%s" "$parse_embed" | cut -f2)
+
+		key="$(curl -s "https://github.com/enimax-anime/key/blob/e${embed_type}/key.txt" | sed -nE "s_.*js-file-line\">(.*)<.*_\1_p")"
+		json_data=$(curl -s "${provider_link}/ajax/embed-${embed_type}/getSources?id=${source_id}" -H "X-Requested-With: XMLHttpRequest")
+		video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | sed -nE "s_.*\"sources\":\"([^\"]*)\".*_\1_p" | base64 -d |
+			openssl enc -aes-256-cbc -d -md md5 -k "$key" 2>/dev/null | sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p")
+		[ -z "$video_link" ] && provider="gogoanime" && send_notification "No video links found from zoro, trying gogoanime" && provider="gogoanime" && get_episode_info
+		episode_links=$(printf "$json_data" | sed -E "s@sources\":\"[^\"]*\"@sources\":\"$video_link\"@")
+		;;
+	gogoanime)
+		episode_links=$(curl -s "https://api.consumet.org/meta/anilist/watch/${episode_id}?provider=${provider}")
+		;;
+	esac
 	[ -z "$episode_links" ] && send_notification "Error: no links found for $anime_title episode $((progress + 1))/$episodes_total" "1000" && exit 1
 	[ "$json_output" = "true" ] && printf "%s\n" "$episode_links" && exit 0
 
@@ -251,15 +273,7 @@ get_episode_links() {
 
 	case $provider in
 	zoro)
-		# [ "$video_quality" = "best" ] && video_link=$(printf "%s" "$episode_links"|sed -nE "s@\{\"sources\":\[\{\"url\":\"([^\"]*)\",.*@\1@p")
-		[ -z "$video_link" ] && get_video_url_quality "$video_quality"
-		[ -z "$video_link" ] &&
-			for quality in "1080p" "720p" "480p" "360p" "auto"; do
-				get_video_url_quality "$quality"
-				[ -n "$video_link" ] && break
-			done
-		[ -z "$video_link" ] && provider="gogoanime" && send_notification "No video links found from zoro, trying gogoanime" && provider="gogoanime" && get_episode_info
-		subs_links=$(printf "%s" "$episode_links" | tr "{|}" "\n" | tr "{|}" "\n" | sed -nE "s@\"url\":\"([^\"]*.vtt)\",\"lang\":\"$subs_language.*@\1@p" | sed -e "s/:/\\$path_thing:/g" -e "H;1h;\$!d;x;y/\n/$separator/" -e "s/$separator\$//")
+		subs_links=$(printf "%s" "$json_data" | tr "{|}" "\n" | sed -nE "s@\"file\":\"([^\"]*.vtt)\",\"label\":\"$subs_language.*@\1@p" | sed -e "s/:/\\$path_thing:/g" -e "H;1h;\$!d;x;y/\n/$separator/" -e "s/$separator\$//")
 		[ -z "$subs_links" ] && subs_links=$(printf "%s" "$episode_links" | tr "{|}" "\n" | tr "{|}" "\n" | sed -nE "s@\"url\":\"([^\"]*.vtt)\",\"lang\":\"English.*@\1@p" | sed -e "s/:/\\$path_thing:/g" -e "H;1h;\$!d;x;y/\n/$separator/" -e "s/$separator\$//")
 		;;
 	*)
@@ -394,7 +408,7 @@ case "$choice" in
 "Watch New")
 	search_anime
 	[ -z "$progress" ] && progress="0"
-	send_notification "Disclaimer: you need to finish the first episode before you can update your progress" "5000"
+	[ "$json_output" = "true" ] || send_notification "Disclaimer: you need to finish the first episode before you can update your progress" "5000"
 	watch_anime
 	;;
 esac
