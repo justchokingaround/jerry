@@ -8,11 +8,12 @@ config_file="$HOME/.config/jerry/jerry.conf"
 cache_dir="$HOME/.cache/jerry"
 command -v bat >/dev/null 2>&1 && display="bat" || display="less"
 jerry_editor=${VISUAL:-${EDITOR:-vim}}
-default_config="discord_presence=false\nprovider=zoro\nsubs_language=English\nuse_external_menu=0\nvideo_quality=best\nhistory_file=$HOME/.cache/anime_history\njerry_editor=$jerry_editor\nimages_cache_dir=\"/tmp/jerry-images\"\nimage_preview=false\nimage_config_path=\"$HOME/.config/rofi/styles/image-preview.rasi"\"
+default_config="discord_presence=false\nprovider=zoro\nmanga_provider\nsubs_language=English\nuse_external_menu=0\nvideo_quality=best\nhistory_file=$HOME/.cache/anime_history\njerry_editor=$jerry_editor\nmanga_dir=\"/tmp/jerry-manga\"\nimages_cache_dir=\"/tmp/jerry-images\"\nimage_preview=false\nimage_config_path=\"$HOME/.config/rofi/styles/image-preview.rasi"\"
 case "$(uname -s)" in
 MINGW* | *Msys) separator=';' && path_thing='' ;;
 *) separator=':' && path_thing="\\" ;;
 esac
+command -v notify-send >/dev/null 2>&1 && notify="true" || notify="false"
 dep_ch() {
 	for dep; do
 		command -v "$dep" >/dev/null || notify-send "Program \"$dep\" not found. Please install it."
@@ -75,10 +76,12 @@ configuration() {
 	[ -f "$config_file" ] && . "${config_file}"
 	[ -z "$discord_presence" ] && discord_presence="false"
 	[ -z "$preferred_provider" ] && provider="zoro" || provider="$preferred_provider"
+	[ -z "$manga_provider" ] && manga_provider="mangakalot"
 	[ -z "$subs_language" ] && subs_language="English"
 	[ -z "$use_external_menu" ] && use_external_menu="0"
 	[ -z "$video_quality" ] && video_quality="best"
 	[ -z "$history_file" ] && history_file="$HOME/.cache/anime_history"
+	[ -z "$manga_dir" ] && manga_dir="/tmp/jerry-manga"
 	[ -z "$images_cache_dir" ] && images_cache_dir="/tmp/jerry-images"
 	[ -z "$image_preview" ] && image_preview="false"
 	[ -z "$image_config_path" ] && image_config_path="$HOME/.config/rofi/styles/image-preview.rasi"
@@ -101,12 +104,14 @@ https://anilist.co/api/v2/oauth/authorize?client_id=9857&response_type=token : "
 }
 
 send_notification() {
+	[ -n "$json_output" ] && return
 	[ "$use_external_menu" = "0" ] && printf "\33[2K\r\033[1;34m%s\n\033[0m" "$1" && return
 	[ -z "$2" ] && timeout=3000 || timeout="$2"
-	if command -v notify-send >/dev/null 2>&1; then
-		notify-send "$1" -t "$timeout"
+	if [ "$notify" = "true" ]; then
+		[ -z "$3" ] && notify-send "$1" -t "$timeout"
+		[ -n "$3" ] && notify-send "$1" -t "$timeout" -i "$3" -r 1
+		# -h string:x-dunst-stack-tag:tes
 	fi
-	[ -n "$json_output" ] && return
 }
 
 launcher() {
@@ -121,8 +126,8 @@ external_menu() {
 nth() {
 	stdin=$(cat -)
 	[ -z "$stdin" ] && return 1
-	line=$(echo "$stdin" | awk -F '\t' "{ print NR, $1 }" | launcher "$2" | cut -d\  -f1)
-	[ -n "$line" ] && echo "$stdin" | sed "${line}q;d" || exit 1
+	line=$(printf "%b\n" "$stdin" | awk -F '\t' "{ print NR, $1 }" | launcher "$2" | cut -d\  -f1)
+	[ -n "$line" ] && printf "%b\n" "$stdin" | sed "${line}q;d" || exit 1
 }
 
 get_input() {
@@ -135,42 +140,83 @@ get_input() {
 	[ -z "$query" ] && send_notification "Error: No query provided" "1000"
 }
 
-get_anime_from_list() {
-	anime_list=$(curl -s -X POST "$anilist_base" \
+get_from_list() {
+	list=$(curl -s -X POST "$anilist_base" \
 		-H 'Content-Type: application/json' \
 		-H "Authorization: Bearer $access_token" \
-		-d "{\"query\":\"query(\$userId:Int,\$userName:String,\$type:MediaType){MediaListCollection(userId:\$userId,userName:\$userName,type:\$type){lists{name isCustomList isCompletedList:isSplitCompletedList entries{...mediaListEntry}}user{id name avatar{large}mediaListOptions{scoreFormat rowOrder animeList{sectionOrder customLists splitCompletedSectionByFormat theme}mangaList{sectionOrder customLists splitCompletedSectionByFormat theme}}}}}fragment mediaListEntry on MediaList{id mediaId status score progress progressVolumes repeat priority private hiddenFromStatusLists customLists advancedScores notes updatedAt startedAt{year month day}completedAt{year month day}media{id title{userPreferred romaji english native}coverImage{extraLarge large}type format status(version:2)episodes volumes chapters averageScore popularity isAdult countryOfOrigin genres bannerImage startDate{year month day}}}\",\"variables\":{\"userId\":$user_id,\"type\":\"ANIME\"}}" |
-		tr "\[|\]" "\n" | sed -nE "s@.*\"mediaId\":([0-9]*),\"status\":\"$1\",\"score\":(.*),\"progress\":([0-9]*),.*\"userPreferred\":\"([^\"]*)\".*\"coverImage\":\{\"extraLarge\":\"([^\"]*)\".*\"episodes\":([0-9]*).*@\4 (\3/\6 episodes) \t[\2]\t[\1]\t\5@p" | sed 's/\\\//\//g')
+		-d "{\"query\":\"query(\$userId:Int,\$userName:String,\$type:MediaType){MediaListCollection(userId:\$userId,userName:\$userName,type:\$type){lists{name isCustomList isCompletedList:isSplitCompletedList entries{...mediaListEntry}}user{id name avatar{large}mediaListOptions{scoreFormat rowOrder animeList{sectionOrder customLists splitCompletedSectionByFormat theme}mangaList{sectionOrder customLists splitCompletedSectionByFormat theme}}}}}fragment mediaListEntry on MediaList{id mediaId status score progress progressVolumes repeat priority private hiddenFromStatusLists customLists advancedScores notes updatedAt startedAt{year month day}completedAt{year month day}media{id title{userPreferred romaji english native}coverImage{extraLarge large}type format status(version:2)episodes volumes chapters averageScore popularity isAdult countryOfOrigin genres bannerImage startDate{year month day}}}\",\"variables\":{\"userId\":$user_id,\"type\":\"$2\"}}")
+	case "$2" in
+	"ANIME")
+		anime_list=$(printf "%s" "$list" | tr "\[|\]" "\n" | sed -nE "s@.*\"mediaId\":([0-9]*),\"status\":\"$1\",\"score\":(.*),\"progress\":([0-9]*),.*\"userPreferred\":\"([^\"]*)\".*\"coverImage\":\{\"extraLarge\":\"([^\"]*)\".*\"episodes\":([0-9]*).*@\4 (\3/\6 episodes) \t[\2]\t[\1]\t\5@p" | sed 's/\\\//\//g')
+		;;
+	"MANGA")
+		manga_list=$(printf "%s" "$list" | tr "\[|\]" "\n" | sed -nE "s@.*\"mediaId\":([0-9]*),\"status\":\"$1\",\"score\":(.*),\"progress\":([0-9]*),.*\"userPreferred\":\"([^\"]*)\".*\"coverImage\":\{\"extraLarge\":\"([^\"]*)\".*\"chapters\":([0-9]*).*@\4 (\3/\6 chapters) \t[\2]\t[\1]\t\5@p" | sed 's/\\\//\//g')
+		;;
+	esac
 
 	case "$image_preview" in
 	"true" | 1)
 		mkdir -p "$images_cache_dir"
-		printf "%s\n" "$anime_list" | sed -nE "s@.*\[([0-9]*)\].*(https://.*)@\1\t\2@p" | while read -r media_id cover_url; do
-			curl -s -o "$images_cache_dir/$media_id.jpg" "$cover_url" &
-		done
+		case "$2" in
+		"ANIME")
+			printf "%s\n" "$anime_list" | sed -nE "s@.*\[([0-9]*)\].*(https://.*)@\1\t\2@p" | while read -r media_id cover_url; do
+				curl -s -o "$images_cache_dir/$media_id.jpg" "$cover_url" &
+			done
+			;;
+		"MANGA")
+			printf "%s\n" "$manga_list" | sed -nE "s@.*\[([0-9]*)\].*(https://.*)@\1\t\2@p" | while read -r media_id cover_url; do
+				curl -s -o "$images_cache_dir/$media_id.jpg" "$cover_url" &
+			done
+			;;
+		esac
 		wait && sleep 1
 
-		anime_choice=$(printf "%s\n" "$anime_list" | sed -nE "s@(.*) \(([0-9]*)\/([0-9]*) episodes\) \t\[([0-9]*)\]\t\[([0-9]*)\].*@\5\t\4\t\3\t\2\t\1@p" |
-			while read -r media_id score episodes_total episodes_done anime_title; do
-				printf "[%s]\t%s (%d/%d episodes) [%d]\x00icon\x1f%s/%s.jpg\n" "$media_id" "$anime_title" "$episodes_done" "$episodes_total" "$score" "$images_cache_dir" "$media_id"
-			done | rofi -dmenu -i -p "" -theme "$image_config_path" -mesg "Select anime" -display-columns 2..)
-		anime_title=$(printf "%s" "$anime_choice" | sed -nE "s@.*\t(.*) \([0-9]*/[0-9]* episodes\) \[.*\]@\1@p")
-		[ -z "$progress" ] && progress=$(printf "%s" "$anime_choice" | sed -nE "s@.*\t.* \(([0-9]*)\/[0-9]* episodes\) \[.*\]@\1@p")
-		episodes_total=$(printf "%s" "$anime_choice" | sed -nE "s@.*\t.* \([0-9]*/([0-9]*) episodes\) \[.*\]@\1@p")
-		score=$(printf "%s" "$anime_choice" | sed -nE "s@.*\t.* \([0-9]*/[0-9]* episodes\) \[([0-9]*)\]@\1@p")
-		media_id=$(printf "%s" "$anime_choice" | sed -nE "s@\[([0-9]*)\].*@\1@p")
+		case "$2" in
+		"ANIME")
+			anime_choice=$(printf "%b\n" "$anime_list" | sed -nE "s@(.*) \(([0-9]*)\/([0-9]*) episodes\) \t\[([0-9]*)\]\t\[([0-9]*)\].*@\5\t\4\t\3\t\2\t\1@p" |
+				while read -r media_id score episodes_total episodes_done anime_title; do
+					printf "[%s]\t%s (%d/%d episodes) [%d]\x00icon\x1f%s/%s.jpg\n" "$media_id" "$anime_title" "$episodes_done" "$episodes_total" "$score" "$images_cache_dir" "$media_id"
+				done | rofi -dmenu -i -p "" -theme "$image_config_path" -mesg "Select anime" -display-columns 2..)
+			anime_title=$(printf "%s" "$anime_choice" | sed -nE "s@.*\t(.*) \([0-9]*/[0-9]* episodes\) \[.*\]@\1@p")
+			[ -z "$progress" ] && progress=$(printf "%s" "$anime_choice" | sed -nE "s@.*\t.* \(([0-9]*)\/[0-9]* episodes\) \[.*\]@\1@p")
+			episodes_total=$(printf "%s" "$anime_choice" | sed -nE "s@.*\t.* \([0-9]*/([0-9]*) episodes\) \[.*\]@\1@p")
+			score=$(printf "%s" "$anime_choice" | sed -nE "s@.*\t.* \([0-9]*/[0-9]* episodes\) \[([0-9]*)\]@\1@p")
+			media_id=$(printf "%s" "$anime_choice" | sed -nE "s@\[([0-9]*)\].*@\1@p")
+			;;
+		"MANGA")
+			manga_choice=$(printf "%s\n" "$manga_list" | sed -nE "s@(.*) \(([0-9]*/[^\"]* chapters)\) \t\[([0-9]*)\]\t\[([0-9]*)\].*@\4\t\3\t\2\t\1@p" |
+				while read -r media_id score chapters_done _chapters_total manga_title; do
+					printf "[%s]\t%s (%s) [%d]\x00icon\x1f%s/%s.jpg\n" "$media_id" "$manga_title" "$chapters_done" "$score" "$images_cache_dir" "$media_id"
+				done | rofi -dmenu -i -p "" -theme "$image_config_path" -mesg "Select manga" -display-columns 2..)
+			manga_title=$(printf "%s" "$manga_choice" | cut -f2 | sed -nE "s@(.*) \([0-9]*/.*\) \[.*\]@\1@p")
+			[ -z "$progress" ] && progress=$(printf "%s" "$manga_choice" | sed -nE "s@.* \(([0-9]*)\/.*\) \[.*\]@\1@p")
+			score=$(printf "%s" "$manga_choice" | sed -nE "s@.* \([0-9]*/.*\) \[([0-9]*)\]@\1@p")
+			media_id=$(printf "%s" "$manga_choice" | sed -nE "s@\[([0-9]*)\].*@\1@p")
+			chapters_total=$(printf "%s" "$manga_choice" | sed -nE "s@.* \([0-9]*\/([0-9]*)\) \[.*\]@\1@p")
+			;;
+		esac
 		;;
 	*)
-		anime_choice="$(printf "%s" "$anime_list" | nth "\$1,\$2" "Select anime")"
-		anime_title=$(printf "%s" "$anime_choice" | sed -E "s@(.*) \([0-9]*/[0-9]*\ episodes\) \t.*@\1@")
-		[ -z "$progress" ] && progress=$(printf "%s" "$anime_choice" | sed -nE "s@($anime_title) \(([0-9]*)\/([0-9]*)\ episodes\) \t.*@\2@p")
-		episodes_total=$(printf "%s" "$anime_choice" | sed -nE "s@($anime_title) \(([0-9]*)\/([0-9]*)\ episodes\) \t.*@\3@p")
-		score=$(printf "%s" "$anime_choice" | sed -nE "s@$anime_title \([0-9]*/[0-9]*\ episodes\) \t\[([0-9]*)\].*@\1@p")
-		media_id=$(printf "%s" "$anime_choice" | sed -nE "s@.*\t\[([0-9]*)\].*@\1@p")
+		case "$2" in
+		"ANIME")
+			anime_choice="$(printf "%s" "$anime_list" | nth "\$1,\$2" "Select anime")"
+			anime_title=$(printf "%s" "$anime_choice" | sed -E "s@(.*) \([0-9]*/[0-9]*\ episodes\) \t.*@\1@")
+			[ -z "$progress" ] && progress=$(printf "%s" "$anime_choice" | sed -nE "s@($anime_title) \(([0-9]*)\/([0-9]*)\ episodes\) \t.*@\2@p")
+			episodes_total=$(printf "%s" "$anime_choice" | sed -nE "s@($anime_title) \(([0-9]*)\/([0-9]*)\ episodes\) \t.*@\3@p")
+			score=$(printf "%s" "$anime_choice" | sed -nE "s@$anime_title \([0-9]*/[0-9]*\ episodes\) \t\[([0-9]*)\].*@\1@p")
+			media_id=$(printf "%s" "$anime_choice" | sed -nE "s@.*\t\[([0-9]*)\].*@\1@p")
+			;;
+		"MANGA")
+			manga_choice="$(printf "%s" "$manga_list" | nth "\$1,\$2" "Select manga")"
+			manga_title=$(printf "%s" "$manga_choice" | sed -E "s@(.*) \([0-9]*/[^\"]* chapters\) \t.*@\1@")
+			[ -z "$progress" ] && progress=$(printf "%s" "$manga_choice" | sed -nE "s@($manga_title) \(([0-9]*)\/[^\"]* chapters\) \t.*@\2@p")
+			score=$(printf "%s" "$manga_choice" | sed -nE "s@$manga_title \([0-9]*/[^\"]* chapters\) \t\[([0-9]*)\].*@\1@p")
+			media_id=$(printf "%s" "$manga_choice" | sed -nE "s@.*\t\[([0-9]*)\].*@\1@p")
+			;;
+		esac
 		;;
 	esac
 
-	[ -z "$anime_title" ] && exit 0
 }
 
 search_anime() {
@@ -208,7 +254,43 @@ search_anime() {
 	[ -z "$anime_title" ] && exit 0
 }
 
-update_episode() {
+search_manga() {
+	get_input
+	[ -z "$query" ] && exit 1
+	manga_list=$(curl -s -X POST "$anilist_base" \
+		-H "Content-Type: aplication/json" \
+		-d "{\"query\":\"query(\$page:Int = 1 \$id:Int \$type:MediaType \$isAdult:Boolean = false \$search:String \$format:[MediaFormat]\$status:MediaStatus \$countryOfOrigin:CountryCode \$source:MediaSource \$season:MediaSeason \$seasonYear:Int \$year:String \$onList:Boolean \$yearLesser:FuzzyDateInt \$yearGreater:FuzzyDateInt \$episodeLesser:Int \$episodeGreater:Int \$durationLesser:Int \$durationGreater:Int \$chapterLesser:Int \$chapterGreater:Int \$volumeLesser:Int \$volumeGreater:Int \$licensedBy:[Int]\$isLicensed:Boolean \$genres:[String]\$excludedGenres:[String]\$tags:[String]\$excludedTags:[String]\$minimumTagRank:Int \$sort:[MediaSort]=[POPULARITY_DESC,SCORE_DESC]){Page(page:\$page,perPage:20){pageInfo{total perPage currentPage lastPage hasNextPage}media(id:\$id type:\$type season:\$season format_in:\$format status:\$status countryOfOrigin:\$countryOfOrigin source:\$source search:\$search onList:\$onList seasonYear:\$seasonYear startDate_like:\$year startDate_lesser:\$yearLesser startDate_greater:\$yearGreater episodes_lesser:\$episodeLesser episodes_greater:\$episodeGreater duration_lesser:\$durationLesser duration_greater:\$durationGreater chapters_lesser:\$chapterLesser chapters_greater:\$chapterGreater volumes_lesser:\$volumeLesser volumes_greater:\$volumeGreater licensedById_in:\$licensedBy isLicensed:\$isLicensed genre_in:\$genres genre_not_in:\$excludedGenres tag_in:\$tags tag_not_in:\$excludedTags minimumTagRank:\$minimumTagRank sort:\$sort isAdult:\$isAdult){id title{userPreferred}coverImage{extraLarge large color}startDate{year month day}endDate{year month day}bannerImage season seasonYear description type format status(version:2)episodes duration chapters volumes genres isAdult averageScore popularity nextAiringEpisode{airingAt timeUntilAiring episode}mediaListEntry{id status}studios(isMain:true){edges{isMain node{id name}}}}}}\",\"variables\":{\"page\":1,\"type\":\"MANGA\",\"sort\":\"SEARCH_MATCH\",\"search\":\"$query\"}}" |
+		tr "\[|\]" "\n" | sed -nE "s@.*\"id\":([0-9]*),.*\"userPreferred\":\"(.*)\"\},\"coverImage\":.*\"extraLarge\":\"([^\"]*)\".*\"chapters\":([^,]*),.*@\2 (\4 chapters)\t[\1]\t\3@p" | sed 's/\\\//\//g')
+
+	case "$image_preview" in
+	"true" | '1')
+		mkdir -p "$images_cache_dir"
+		printf "%s\n" "$manga_list" | sed -nE "s@.*\[([0-9]*)\].*(https://.*)@\1\t\2@p" | while read -r media_id cover_url; do
+			curl -s -o "/tmp/jerry-images/$media_id.jpg" "$cover_url" &
+		done
+		wait && sleep 1
+
+		manga_selected=$(printf "%s\n" "$manga_list" | sed -nE "s@(.*) \(([0-9]*) chapters\).*\[([0-9]*)\]@\3\t\2\t\1@p" | while read -r media_id chapters_total manga_title; do
+			manga_title=$(printf "%s\n" "$manga_title" | cut -f1)
+			printf "[%s]\t%s (%d chapters)\x00icon\x1f%s/%s.jpg\n" "$media_id" "$manga_title" "$chapters_total" "$images_cache_dir" "$media_id"
+		done | rofi -dmenu -i -p "" -theme "$image_config_path" -mesg "Select manga" -display-columns 2..)
+		manga_title=$(printf "%s" "$manga_selected" | sed -nE "s@.*\t([^\t]*) \([0-9]* chapters\).*@\1@p")
+		chapters_total=$(printf "%s" "$manga_selected" | sed -nE "s@.*\t[^\t]* \(([0-9]*) chapters\).*@\1@p")
+		media_id=$(printf "%s" "$manga_selected" | sed -nE "s@\[([0-9]*)\].*@\1@p")
+		;;
+	*)
+		manga_selected=$(printf "%s" "$manga_list" | nth "\$1" "Select manga")
+		manga_title=$(printf "%s" "$manga_selected" | cut -f1 | sed -nE "s@(.*) \([0-9]* chapters\).*@\1@p")
+		chapters_total=$(printf "%s" "$manga_selected" | sed -nE "s@.*\(([0-9]*) chapters\).*@\1@p")
+		media_id=$(printf "%s" "$manga_selected" | sed -nE "s@.*\[([0-9]*)\].*@\1@p")
+		;;
+	esac
+
+	[ -z "$manga_title" ] && exit 0
+
+}
+
+update_progress() {
 	curl -s -X POST "$anilist_base" \
 		-H 'Content-Type: application/json' \
 		-H "Authorization: Bearer $access_token" \
@@ -219,7 +301,7 @@ update_episode() {
 update_episode_from_list() {
 	status_choice=$(printf "CURRENT\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Filter by status")
 	# status_choice="CURRENT"
-	get_anime_from_list "$status_choice"
+	get_from_list "$status_choice" "ANIME"
 	send_notification "Enter new progress for: $anime_title" "5000"
 	send_notification "Current progress: $progress/$episodes_total episodes watched" "5000"
 	if [ "$use_external_menu" = "0" ]; then
@@ -232,19 +314,19 @@ update_episode_from_list() {
 	[ -z "$new_episode_number" ] && send_notification "No episode number given" && exit 1
 	send_notification "Updating progress for $anime_title..."
 	[ "$new_episode_number" -eq "$episodes_total" ] && status="COMPLETED" || status="CURRENT"
-	response=$(update_episode "$((new_episode_number - 1))" "$media_id" "$status")
+	response=$(update_progress "$((new_episode_number - 1))" "$media_id" "$status")
 	send_notification "New progress: $new_episode_number/$episodes_total episodes watched"
 	[ "$new_episode_number" -eq "$episodes_total" ] && send_notification "Completed $anime_title"
 }
 
 update_status() {
 	status_choice=$(printf "CURRENT\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Filter by status")
-	get_anime_from_list "$status_choice"
+	get_from_list "$status_choice" "ANIME"
 	send_notification "Choose a new status for $anime_title" "5000"
 	new_status=$(printf "CURRENT\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Choose a new status")
 	[ -z "$new_status" ] && exit 0
 	send_notification "Updating status for $anime_title..."
-	response=$(update_episode "$((progress - 1))" "$media_id" "$new_status")
+	response=$(update_progress "$((progress - 1))" "$media_id" "$new_status")
 	if printf "%s" "$response" | grep -q "errors"; then
 		send_notification "Failed to update status for $anime_title"
 	else
@@ -254,7 +336,7 @@ update_status() {
 
 update_score() {
 	status_choice=$(printf "CURRENT\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Filter by status")
-	get_anime_from_list "$status_choice"
+	get_from_list "$status_choice" "ANIME"
 	send_notification "Enter new score for: \"$anime_title\"" "5000"
 	send_notification "Current score: $score" "5000"
 	if [ "$use_external_menu" = "0" ]; then
@@ -262,7 +344,6 @@ update_score() {
 	else
 		new_score=$(printf "" | launcher "Enter new score")
 	fi
-	[ -z "$new_score" ] && send_notification "No score given" && exit 1
 	[ -z "$new_score" ] && send_notification "No score given" && exit 1
 	send_notification "Updating score for $anime_title..."
 	response=$(curl -s -X POST "$anilist_base" \
@@ -290,6 +371,18 @@ get_episode_info() {
 	*)
 		episode_info=$(printf "%s" "$anime_response" | sed -nE "s@.*\"id\":\"([^\"]*)\",\"title\":\"(.*)\",\"description\".*\"number\":$((progress + 1)),.*@\1\t\2@p" | head -1)
 		[ -z "$episode_info" ] && episode_info=$(printf "%s" "$anime_response" | sed -nE "s@.*\"id\":\"([^\"]*)\",.*\"description\".*\"number\":$((progress + 1)),.*@\1@p" | head -1)
+		;;
+	esac
+}
+
+get_chapter_info() {
+	manga_response=$(curl -s "https://api.consumet.org/meta/anilist-manga/info/${media_id}?provider=${manga_provider}" | tr "{|}" "\n")
+	case $manga_provider in
+	mangakalot)
+		chapter_info=$(printf "%s" "$manga_response" | sed -nE "s@\"id\":\"(.*-chapter-$((progress + 1)))\",\"title\":\"([^\"]*)\",\"releaseDate\".*@\1\t\2@p")
+		;;
+	*)
+		send_notification "Provider not supported" "2000"
 		;;
 	esac
 }
@@ -322,7 +415,6 @@ get_episode_links() {
 	[ "$json_output" = "true" ] && printf "%s\n" "$episode_links" && exit 0
 
 	[ "$((progress + 1))" -eq "$episodes_total" ] && status="COMPLETED" || status="CURRENT"
-	send_notification "Watching $anime_title - Ep: $((progress + 1)) $episode_title"
 
 	case $provider in
 	zoro)
@@ -336,11 +428,34 @@ get_episode_links() {
 	esac
 }
 
+download_images() {
+	send_notification "Downloading $manga_title - Chapter: $((progress + 1)) $chapter_title" "2000"
+	mkdir -p "$manga_dir/$manga_title/chapter_$((progress + 1))"
+	printf "%s" "$chapter_links" | while read -r image_link image_number; do
+		image_name=$(printf "%03d" "$image_number")
+		curl -sL -A "uwu" -e "$referrer" "$image_link" -o "$manga_dir/$manga_title/chapter_$((progress + 1))/$image_name.jpg" &
+	done
+	wait && sleep 1
+}
+
+get_chapter_links() {
+	case $manga_provider in
+	mangakalot)
+		json_response=$(curl -s "https://api.consumet.org/meta/anilist-manga/read?chapterId=${chapter_id}&provider=${manga_provider}")
+		chapter_links=$(printf "%s" "$json_response" | tr "{|}" "\n" | sed -nE "s@.*\"page\":([0-9]*).*\"img\":\"([^\"]*)\".*@\2\t\1@p")
+		referrer=$(printf "%s" "$json_response" | sed -nE "s@.*\"Referer\":\"([^\"]*)\".*@\1@p")
+		;;
+	*) exit 0 ;;
+	esac
+	status="CURRENT"
+	download_images
+}
+
 play_video() {
 	[ -f "$history_file" ] && history=$(grep -E "^$media_id" "$history_file")
 	[ -n "$history" ] && resume_from=$(printf "%s" "$history" | cut -f2)
-	[ -n "$resume_from" ] && [ "$resume_from" -gt 0 ] && [ -z "$incognito" ] && send_notification "Resuming from saved progress: $resume_from%"
 	[ -z "$resume_from" ] && opts="" || opts="--start=${resume_from}%"
+	[ -n "$resume_from" ] && [ "$resume_from" -gt 0 ] && [ -z "$incognito" ] && send_notification "Resuming from saved progress: $resume_from%" "3000"
 	[ -n "$incognito" ] && opts=""
 
 	[ "$discord_presence" = "true" ] && launch_mpv="jerrydiscordpresence.py \"mpv\" \"${anime_title}\" \"$((progress + 1))\" \"${video_link}\" \"${subs_links}\" \"${referrer}\" \"${opts}\"" ||
@@ -350,7 +465,7 @@ play_video() {
 	[ -n "$incognito" ] && exit 0
 	[ -z "$stopped_at" ] && exit 0
 	if [ "$stopped_at" -gt 85 ]; then
-		response=$(update_episode "$progress" "$media_id" "$status")
+		response=$(update_progress "$progress" "$media_id" "$status")
 		if printf "%s" "$response" | grep -q "errors"; then
 			send_notification "Error updating progress"
 		else
@@ -365,6 +480,21 @@ play_video() {
 		mv "$history_file.tmp" "$history_file"
 		send_notification "Stopped at: $stopped_at%" "5000"
 	fi
+}
+
+open_manga() {
+	send_notification "Opening $manga_title - Chapter: $((progress + 1)) $chapter_title" "1000"
+	nsxiv "$manga_dir/$manga_title/chapter_$((progress + 1))"
+	completed_chapter=$(printf "Yes\nNo" | launcher "Do you want to update progress? [y/N]")
+	case "$completed_chapter" in
+	"Yes" | "yes" | "y" | "Y")
+		update_progress "$progress" "$media_id" "$status"
+		send_notification "Updated progress to $((progress + 1))/$chapters_total chapters read"
+		;;
+	*)
+		send_notification "Your progress has not been updated"
+		;;
+	esac
 }
 
 get_anime_info() {
@@ -383,9 +513,34 @@ watch_anime() {
 	[ "$episode_id" = "$episode_title" ] && episode_title=""
 
 	get_episode_links
-	[ -z "$video_link" ] && send_notification "Error: $query not found" && exit 1
-	[ -z "$video_link" ] && send_notification "Error: no video link found for $anime_title episode $((progress + 1))/$episodes_total" "1000" && exit 1
+	case "$image_preview" in
+	"true" | '1')
+		send_notification "Watching $anime_title
+  Ep: $((progress + 1)) $episode_title" "3000" "$images_cache_dir/$media_id.jpg"
+		;;
+	*)
+		send_notification "Watching $anime_title
+  Ep: $((progress + 1)) $episode_title" "3000"
+		;;
+	esac
+
+	[ -z "$video_link" ] && send_notification "Error: no video link found for $anime_title episode $((progress + 1))/$episodes_total" "2000" && exit 1
 	play_video
+}
+
+read_manga() {
+	get_chapter_info
+	[ -z "$chapter_info" ] && send_notification "Error: $query not found on $manga_provider"
+	[ -z "$chapter_info" ] && exit 1
+
+	chapter_id=$(printf "%s" "$chapter_info" | cut -f1 | head -1)
+	chapter_title=$(printf "%s" "$chapter_info" | cut -f2 | head -1 | sed "s@\\\@@g")
+	[ "$chapter_id" = "$chapter_title" ] && chapter_title=""
+
+	get_chapter_links
+	[ -z "$chapter_links" ] && send_notification "Error: no chapter link found for $manga_title chapter $((progress + 1))/$chapters_total" "1000"
+	[ -z "$chapter_links" ] && exit 1
+	open_manga
 }
 
 update_script() {
@@ -426,16 +581,23 @@ done
 configuration
 [ "$(printf "%s" "$subs_language" | head -c 1)" = "$(printf "%s" "$subs_language" | head -c 1 | tr '[:upper:]' '[:lower:]')" ] && subs_language="$(printf "%s" "$subs_language" | head -c 1 | tr '[:lower:]' '[:upper:]')$(printf "%s" "$subs_language" | tail -c +2)"
 
-[ -z "$choice" ] && choice=$(printf "Watch\nUpdate\nInfo\nWatch New" | launcher "Choose an option")
+[ -z "$choice" ] && choice=$(printf "Watch Anime\nRead Manga\nUpdate (Episodes, Status, Score)\nInfo\nWatch New Anime\nRead New Manga\n" | launcher "Choose an option")
 case "$choice" in
-"Watch")
-	get_anime_from_list "CURRENT"
+"Watch Anime")
+	get_from_list "CURRENT" "ANIME"
 	[ -z "$anime_title" ] && exit 0
 	send_notification "Loading $anime_title..." "1000"
 	query="$anime_title"
 	watch_anime
 	;;
-"Update")
+"Read Manga")
+	get_from_list "CURRENT" "MANGA"
+	[ -z "$manga_title" ] && exit 0
+	send_notification "Loading $manga_title..." "1000"
+	query="$manga_title"
+	read_manga
+	;;
+"Update (Episodes, Status, Score)")
 	update_choice=$(printf "Change Episodes Watched\nChange Status\nChange Score" | launcher "Choose an option")
 	case "$update_choice" in
 	"Change Episodes Watched") update_episode_from_list ;;
@@ -458,10 +620,19 @@ case "$choice" in
 		printf "%s" "$anime_info" | $display
 	fi
 	;;
-"Watch New")
+"Watch New Anime")
 	search_anime
 	[ -z "$progress" ] && progress="0"
 	[ "$json_output" = "true" ] || send_notification "Disclaimer: you need to finish the first episode before you can update your progress" "5000"
 	watch_anime
+	;;
+"Read New Manga")
+	search_manga
+	[ -z "$progress" ] && progress="0"
+	[ "$json_output" = "true" ] || send_notification "Disclaimer: you need to finish the first chapter before you can update your progress" "5000"
+	read_manga
+	;;
+*)
+	notify-send "Error: invalid choice" && exit 1
 	;;
 esac
