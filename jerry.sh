@@ -300,8 +300,7 @@ update_progress() {
 
 update_episode_from_list() {
 	status_choice=$(printf "CURRENT\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Filter by status")
-	# status_choice="CURRENT"
-	get_from_list "$status_choice" "ANIME"
+	get_from_list "$status_choice" "$1"
 	send_notification "Enter new progress for: $anime_title" "5000"
 	send_notification "Current progress: $progress/$episodes_total episodes watched" "5000"
 	if [ "$use_external_menu" = "0" ]; then
@@ -321,14 +320,15 @@ update_episode_from_list() {
 
 update_status() {
 	status_choice=$(printf "CURRENT\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Filter by status")
-	get_from_list "$status_choice" "ANIME"
-	send_notification "Choose a new status for $anime_title" "5000"
+	get_from_list "$status_choice" "$1"
+	[ "$1" = "ANIME" ] && title=$anime_title || title=$manga_title
+	send_notification "Choose a new status for $title" "5000"
 	new_status=$(printf "CURRENT\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Choose a new status")
 	[ -z "$new_status" ] && exit 0
-	send_notification "Updating status for $anime_title..."
+	send_notification "Updating status for $title..."
 	response=$(update_progress "$((progress - 1))" "$media_id" "$new_status")
 	if printf "%s" "$response" | grep -q "errors"; then
-		send_notification "Failed to update status for $anime_title"
+		send_notification "Failed to update status for $title"
 	else
 		send_notification "New status: $new_status"
 	fi
@@ -336,8 +336,9 @@ update_status() {
 
 update_score() {
 	status_choice=$(printf "CURRENT\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Filter by status")
-	get_from_list "$status_choice" "ANIME"
-	send_notification "Enter new score for: \"$anime_title\"" "5000"
+	get_from_list "$status_choice" "$1"
+	[ "$1" = "ANIME" ] && title=$anime_title || title=$manga_title
+	send_notification "Enter new score for: \"$title\"" "5000"
 	send_notification "Current score: $score" "5000"
 	if [ "$use_external_menu" = "0" ]; then
 		new_score=$(printf "Enter new score: " && read -r new_score)
@@ -345,13 +346,13 @@ update_score() {
 		new_score=$(printf "" | launcher "Enter new score")
 	fi
 	[ -z "$new_score" ] && send_notification "No score given" && exit 1
-	send_notification "Updating score for $anime_title..."
+	send_notification "Updating score for $title..."
 	response=$(curl -s -X POST "$anilist_base" \
 		-H 'Content-Type: application/json' \
 		-H "Authorization: Bearer $access_token" \
 		-d "{\"query\":\"mutation(\$id:Int \$mediaId:Int \$status:MediaListStatus \$score:Float \$progress:Int \$progressVolumes:Int \$repeat:Int \$private:Boolean \$notes:String \$customLists:[String]\$hiddenFromStatusLists:Boolean \$advancedScores:[Float]\$startedAt:FuzzyDateInput \$completedAt:FuzzyDateInput){SaveMediaListEntry(id:\$id mediaId:\$mediaId status:\$status score:\$score progress:\$progress progressVolumes:\$progressVolumes repeat:\$repeat private:\$private notes:\$notes customLists:\$customLists hiddenFromStatusLists:\$hiddenFromStatusLists advancedScores:\$advancedScores startedAt:\$startedAt completedAt:\$completedAt){id mediaId status score advancedScores progress progressVolumes repeat priority private hiddenFromStatusLists customLists notes updatedAt startedAt{year month day}completedAt{year month day}user{id name}media{id title{userPreferred}coverImage{large}type format status episodes volumes chapters averageScore popularity isAdult startDate{year}}}}\",\"variables\":{\"score\":$new_score,\"mediaId\":$media_id}}")
 	if printf "%s" "$response" | grep -q "errors"; then
-		send_notification "Failed to update score for $anime_title"
+		send_notification "Failed to update score for $title"
 	else
 		send_notification "New score: $new_score"
 	fi
@@ -607,10 +608,13 @@ case "$choice" in
 	;;
 "Update (Episodes, Status, Score)")
 	update_choice=$(printf "Change Episodes Watched\nChange Status\nChange Score" | launcher "Choose an option")
+	# TODO: FIX update_episode_from_list for manga
+	media_type=$(printf "ANIME\nMANGA" | launcher "Choose a media type")
+	[ -z "$media_type" ] && exit 0
 	case "$update_choice" in
-	"Change Episodes Watched") update_episode_from_list ;;
-	"Change Status") update_status ;;
-	"Change Score") update_score ;;
+	"Change Episodes Watched") update_episode_from_list "$media_type" ;;
+	"Change Status") update_status "$media_type" ;;
+	"Change Score") update_score "$media_type" ;;
 	esac
 	;;
 "Info")
