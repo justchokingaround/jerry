@@ -484,15 +484,16 @@ play_video() {
 }
 
 convert_to_pdf() {
+	# TODO: implement caching
+	rm -rf "$manga_dir/$manga_title/chapter_$((progress + 1))/$manga_title - Chapter $((progress + 1)).pdf"
 	send_notification "Converting $manga_title - Chapter: $((progress + 1)) $chapter_title to PDF" "2000"
-	mogrify -format jpeg "$manga_dir/$manga_title/chapter_$((progress + 1))"/*.jpg && wait
-	convert "$manga_dir/$manga_title/chapter_$((progress + 1))"/*.jpeg "$manga_dir/$manga_title/chapter_$((progress + 1))/$manga_title - Chapter $((progress + 1)).pdf" && wait
+	convert "$manga_dir/$manga_title/chapter_$((progress + 1))"/*.jpg "$manga_dir/$manga_title/chapter_$((progress + 1))/$manga_title - Chapter $((progress + 1)).pdf" && wait
 }
 
 open_manga() {
 	convert_to_pdf
 	send_notification "Opening $manga_title - Chapter: $((progress + 1)) $chapter_title" "1000"
-	zathura "$manga_dir/$manga_title/chapter_$((progress + 1))/$manga_title - Chapter $((progress + 1)).pdf"
+	zathura --mode fullscreen "$manga_dir/$manga_title/chapter_$((progress + 1))/$manga_title - Chapter $((progress + 1)).pdf"
 	# nsxiv "$manga_dir/$manga_title/chapter_$((progress + 1))"
 	completed_chapter=$(printf "Yes\nNo" | launcher "Do you want to update progress? [y/N]")
 	case "$completed_chapter" in
@@ -546,7 +547,7 @@ read_manga() {
 	chapter_title=$(printf "%s" "$chapter_info" | cut -f2 | head -1 | sed "s@\\\@@g")
 	[ "$chapter_id" = "$chapter_title" ] && chapter_title=""
 
-	get_chapter_links
+	get_chapter_links && wait
 	[ -z "$chapter_links" ] && send_notification "Error: no chapter link found for $manga_title chapter $((progress + 1))/$chapters_total" "1000"
 	[ -z "$chapter_links" ] && exit 1
 	open_manga
