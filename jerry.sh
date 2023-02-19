@@ -448,7 +448,7 @@ get_chapter_links() {
 	*) exit 0 ;;
 	esac
 	status="CURRENT"
-	download_images
+	download_images && wait
 }
 
 play_video() {
@@ -482,9 +482,17 @@ play_video() {
 	fi
 }
 
+convert_to_pdf() {
+	send_notification "Converting $manga_title - Chapter: $((progress + 1)) $chapter_title to PDF" "2000"
+	mogrify -format jpeg "$manga_dir/$manga_title/chapter_$((progress + 1))"/*.jpg && wait
+	convert "$manga_dir/$manga_title/chapter_$((progress + 1))"/*.jpeg "$manga_dir/$manga_title/chapter_$((progress + 1))/$manga_title - Chapter $((progress + 1)).pdf" && wait
+}
+
 open_manga() {
+	convert_to_pdf
 	send_notification "Opening $manga_title - Chapter: $((progress + 1)) $chapter_title" "1000"
-	nsxiv "$manga_dir/$manga_title/chapter_$((progress + 1))"
+	zathura "$manga_dir/$manga_title/chapter_$((progress + 1))/$manga_title - Chapter $((progress + 1)).pdf"
+	# nsxiv "$manga_dir/$manga_title/chapter_$((progress + 1))"
 	completed_chapter=$(printf "Yes\nNo" | launcher "Do you want to update progress? [y/N]")
 	case "$completed_chapter" in
 	"Yes" | "yes" | "y" | "Y")
