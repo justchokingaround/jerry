@@ -29,7 +29,7 @@ trap cleanup EXIT INT TERM
 usage() {
 	printf "
   Usage: %s [options] [query]
-  If a query is provided, it will be used to search for an anime, and will default to the 'Watch New' option.
+  If a query is provided, it will be used to search for an anime, and will default to the 'Watch New Anime' option.
 
   Options:
     -c, --continue
@@ -570,7 +570,7 @@ update_script() {
 
 while [ $# -gt 0 ]; do
 	case "$1" in
-	-c | --continue) choice="Watch" && shift ;;
+	-c | --continue) choice="Watch Anime" && shift ;;
 	-d | --discord) discord_presence="true" && shift ;;
 	-D | --dmenu) use_external_menu="1" && shift ;;
 	-e | --edit) [ -f "$config_file" ] && "$jerry_editor" "$config_file" && exit 0 || echo "$default_config" >"$config_file" && "$jerry_editor" "$config_file" && exit 0 ;;
@@ -583,7 +583,7 @@ while [ $# -gt 0 ]; do
 	-q | --quality) video_quality="$2" && shift 2 ;;
 	-u | --update) update_script ;;
 	-v | --version) printf "Jerry Version: %s\n" "$JERRY_VERSION" && exit 0 ;;
-	*) query="$(printf "%s" "$query $1" | sed "s/^ //;s/ /+/g")" && shift && choice="Watch New" ;;
+	*) query="$(printf "%s" "$query $1" | sed "s/^ //;s/ /+/g")" && shift && choice="Watch New Anime" ;;
 	esac
 done
 
