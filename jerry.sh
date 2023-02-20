@@ -8,7 +8,7 @@ config_file="$HOME/.config/jerry/jerry.conf"
 cache_dir="$HOME/.cache/jerry"
 command -v bat >/dev/null 2>&1 && display="bat" || display="less"
 jerry_editor=${VISUAL:-${EDITOR:-vim}}
-default_config="discord_presence=false\nconsumet_base=\"api.consumet.org\"\nprovider=zoro\nmanga_provider\nsubs_language=English\nuse_external_menu=0\nvideo_quality=best\nhistory_file=$HOME/.cache/anime_history\njerry_editor=$jerry_editor\nmanga_dir=\"/tmp/jerry-manga\"\nimages_cache_dir=\"/tmp/jerry-images\"\nimage_preview=false\nimage_config_path=\"$HOME/.config/rofi/styles/image-preview.rasi"\"
+default_config="discord_presence=false\nconsumet_base=\"api.consumet.org\"\nprovider=zoro\nmanga_provider\nsubs_language=English\nuse_external_menu=0\nvideo_quality=best\nhistory_file=$HOME/.cache/anime_history\nmanga_format=\"jpg\"\nmanga_opener=\"nsxiv\"\njerry_editor=$jerry_editor\nmanga_dir=\"/tmp/jerry-manga\"\nimages_cache_dir=\"/tmp/jerry-images\"\nimage_preview=false\nimage_config_path=\"$HOME/.config/rofi/styles/image-preview.rasi"\"
 case "$(uname -s)" in
 MINGW* | *Msys) separator=';' && path_thing='' ;;
 *) separator=':' && path_thing="\\" ;;
@@ -82,6 +82,8 @@ configuration() {
 	[ -z "$use_external_menu" ] && use_external_menu="0"
 	[ -z "$video_quality" ] && video_quality="best"
 	[ -z "$history_file" ] && history_file="$HOME/.cache/anime_history"
+	[ -z "$manga_format" ] && manga_format="jpg"
+	[ -z "$manga_opener" ] && manga_opener="nsxiv"
 	[ -z "$manga_dir" ] && manga_dir="/tmp/jerry-manga"
 	[ -z "$images_cache_dir" ] && images_cache_dir="/tmp/jerry-images"
 	[ -z "$image_preview" ] && image_preview="false"
@@ -432,8 +434,8 @@ get_episode_links() {
 }
 
 download_images() {
+	[ ! -d "$manga_dir/$manga_title/chapter_$((progress + 1))" ] && mkdir -p "$manga_dir/$manga_title/chapter_$((progress + 1))" || return 0
 	send_notification "Downloading $manga_title - Chapter: $((progress + 1)) $chapter_title" "2000"
-	mkdir -p "$manga_dir/$manga_title/chapter_$((progress + 1))"
 	printf "%s" "$chapter_links" | while read -r image_link image_number; do
 		image_name=$(printf "%03d" "$image_number")
 		curl -sL -A "uwu" -e "$referrer" "$image_link" -o "$manga_dir/$manga_title/chapter_$((progress + 1))/$image_name.jpg" &
@@ -486,17 +488,23 @@ play_video() {
 }
 
 convert_to_pdf() {
-	# TODO: implement caching
-	rm -rf "$manga_dir/$manga_title/chapter_$((progress + 1))/$manga_title - Chapter $((progress + 1)).pdf"
 	send_notification "Converting $manga_title - Chapter: $((progress + 1)) $chapter_title to PDF" "2000"
 	convert "$manga_dir/$manga_title/chapter_$((progress + 1))"/*.jpg "$manga_dir/$manga_title/chapter_$((progress + 1))/$manga_title - Chapter $((progress + 1)).pdf" && wait
 }
 
 open_manga() {
-	convert_to_pdf
-	send_notification "Opening $manga_title - Chapter: $((progress + 1)) $chapter_title" "1000"
-	zathura --mode fullscreen "$manga_dir/$manga_title/chapter_$((progress + 1))/$manga_title - Chapter $((progress + 1)).pdf"
-	# nsxiv "$manga_dir/$manga_title/chapter_$((progress + 1))"
+	# zathura --mode fullscreen
+	case "$manga_format" in
+	pdf)
+		[ -f "$manga_dir/$manga_title/chapter_$((progress + 1))/$manga_title - Chapter $((progress + 1)).pdf" ] || convert_to_pdf
+		send_notification "Opening $manga_title - Chapter: $((progress + 1)) $chapter_title" "1000"
+		"$manga_opener" "$manga_dir/$manga_title/chapter_$((progress + 1))/$manga_title - Chapter $((progress + 1)).pdf"
+		;;
+	jpg)
+		send_notification "Opening $manga_title - Chapter: $((progress + 1)) $chapter_title" "1000"
+		"$manga_opener" "$manga_dir/$manga_title/chapter_$((progress + 1))"
+		;;
+	esac
 	completed_chapter=$(printf "Yes\nNo" | launcher "Do you want to update progress? [y/N]")
 	case "$completed_chapter" in
 	"Yes" | "yes" | "y" | "Y")
