@@ -323,6 +323,7 @@ update_status() {
 	status_choice=$(printf "CURRENT\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Filter by status")
 	get_from_list "$status_choice" "$1"
 	[ "$1" = "ANIME" ] && title=$anime_title || title=$manga_title
+	[ -z "$title" ] && exit 0
 	send_notification "Choose a new status for $title" "5000"
 	new_status=$(printf "CURRENT\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Choose a new status")
 	[ -z "$new_status" ] && exit 0
