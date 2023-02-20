@@ -8,7 +8,7 @@ config_file="$HOME/.config/jerry/jerry.conf"
 cache_dir="$HOME/.cache/jerry"
 command -v bat >/dev/null 2>&1 && display="bat" || display="less"
 jerry_editor=${VISUAL:-${EDITOR:-vim}}
-default_config="discord_presence=false\nprovider=zoro\nmanga_provider\nsubs_language=English\nuse_external_menu=0\nvideo_quality=best\nhistory_file=$HOME/.cache/anime_history\njerry_editor=$jerry_editor\nmanga_dir=\"/tmp/jerry-manga\"\nimages_cache_dir=\"/tmp/jerry-images\"\nimage_preview=false\nimage_config_path=\"$HOME/.config/rofi/styles/image-preview.rasi"\"
+default_config="discord_presence=false\nconsumet_base=\"api.consumet.org\"\nprovider=zoro\nmanga_provider\nsubs_language=English\nuse_external_menu=0\nvideo_quality=best\nhistory_file=$HOME/.cache/anime_history\njerry_editor=$jerry_editor\nmanga_dir=\"/tmp/jerry-manga\"\nimages_cache_dir=\"/tmp/jerry-images\"\nimage_preview=false\nimage_config_path=\"$HOME/.config/rofi/styles/image-preview.rasi"\"
 case "$(uname -s)" in
 MINGW* | *Msys) separator=';' && path_thing='' ;;
 *) separator=':' && path_thing="\\" ;;
@@ -75,6 +75,7 @@ configuration() {
 	[ ! -d "$HOME/.config/jerry" ] && mkdir -p "$HOME/.config/jerry"
 	[ -f "$config_file" ] && . "${config_file}"
 	[ -z "$discord_presence" ] && discord_presence="false"
+	[ -z "$consumet_base" ] && consumet_base="api.consumet.org"
 	[ -z "$preferred_provider" ] && provider="zoro" || provider="$preferred_provider"
 	[ -z "$manga_provider" ] && manga_provider="mangakalot"
 	[ -z "$subs_language" ] && subs_language="English"
@@ -363,7 +364,7 @@ get_video_url_quality() {
 }
 
 get_episode_info() {
-	anime_response=$(curl -s "https://api.consumet.org/meta/anilist/info/${media_id}?provider=${provider}" | tr "{|}" "\n")
+	anime_response=$(curl -s "https://$consumet_base/meta/anilist/info/${media_id}?provider=${provider}" | tr "{|}" "\n")
 	case $provider in
 	zoro)
 		episode_info=$(printf "%s" "$anime_response" | sed -nE "s@\"id\":\"([^\"]*)\",\"title\":\"([^\"]*)\",.*\"number\":$((progress + 1)).*@\1\t\2@p" | head -1)
@@ -377,7 +378,7 @@ get_episode_info() {
 }
 
 get_chapter_info() {
-	manga_response=$(curl -s "https://api.consumet.org/meta/anilist-manga/info/${media_id}?provider=${manga_provider}" | tr "{|}" "\n")
+	manga_response=$(curl -s "https://$consumet_base/meta/anilist-manga/info/${media_id}?provider=${manga_provider}" | tr "{|}" "\n")
 	case $manga_provider in
 	mangakalot)
 		chapter_info=$(printf "%s" "$manga_response" | sed -nE "s@\"id\":\"(.*-chapter-$((progress + 1)))\",\"title\":\"([^\"]*)\",\"releaseDate\".*@\1\t\2@p")
@@ -409,7 +410,7 @@ get_episode_links() {
 		episode_links=$(printf "%s" "$json_data" | sed -E "s@sources\":\"[^\"]*\"@sources\":\"$video_link\"@")
 		;;
 	gogoanime)
-		episode_links=$(curl -s "https://api.consumet.org/meta/anilist/watch/${episode_id}?provider=${provider}")
+		episode_links=$(curl -s "https://$consumet_base/meta/anilist/watch/${episode_id}?provider=${provider}")
 		;;
 	esac
 	[ -z "$episode_links" ] && send_notification "Error: no links found for $anime_title episode $((progress + 1))/$episodes_total" "1000" && exit 1
@@ -442,7 +443,7 @@ download_images() {
 get_chapter_links() {
 	case $manga_provider in
 	mangakalot)
-		json_response=$(curl -s "https://api.consumet.org/meta/anilist-manga/read?chapterId=${chapter_id}&provider=${manga_provider}")
+		json_response=$(curl -s "https://$consumet_base/meta/anilist-manga/read?chapterId=${chapter_id}&provider=${manga_provider}")
 		chapter_links=$(printf "%s" "$json_response" | tr "{|}" "\n" | sed -nE "s@.*\"page\":([0-9]*).*\"img\":\"([^\"]*)\".*@\2\t\1@p")
 		referrer=$(printf "%s" "$json_response" | sed -nE "s@.*\"Referer\":\"([^\"]*)\".*@\1@p")
 		;;
