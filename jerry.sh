@@ -304,21 +304,44 @@ update_progress() {
 update_episode_from_list() {
 	status_choice=$(printf "CURRENT\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Filter by status")
 	get_from_list "$status_choice" "$1"
-	send_notification "Enter new progress for: $anime_title" "5000"
-	send_notification "Current progress: $progress/$episodes_total episodes watched" "5000"
+	case "$1" in
+	"ANIME")
+		title="$anime_title"
+		unit="episode"
+		total="$episodes_total"
+		;;
+	"MANGA")
+		title="$manga_title"
+		unit="chapter"
+		total="$chapters_total"
+		;;
+	esac
+	[ -z "$title" ] && exit 0
+	case "$1" in
+	"ANIME") send_notification "Current progress: $progress/$total episodes watched" "5000" ;;
+	"MANGA")
+		[ -z "$total" ] && chapters_total="?"
+		send_notification "Current progress: $progress/$chapters_total chapters read" "5000"
+		;;
+	esac
+	[ -z "$progress" ] && exit 0
 	if [ "$use_external_menu" = "0" ]; then
-		new_episode_number=$(printf "Enter a new episode number: " && read -r new_episode_number)
+		new_episode_number=$(printf "Enter a new %s number: " "$unit" && read -r new_episode_number)
 	else
-		new_episode_number=$(printf "" | launcher "Enter a new episode number")
+		new_episode_number=$(printf "" | launcher "Enter a new $unit number")
 	fi
-	[ "$new_episode_number" -gt "$episodes_total" ] && new_episode_number=$episodes_total
+	case "$1" in
+	"ANIME") [ "$new_episode_number" -gt "$total" ] && new_episode_number=$total ;;
+	"MANGA") [ "$new_episode_number" -gt "$total" ] && exit 0 ;;
+	esac
 	[ "$new_episode_number" -lt 0 ] && new_episode_number=0
-	[ -z "$new_episode_number" ] && send_notification "No episode number given" && exit 1
-	send_notification "Updating progress for $anime_title..."
-	[ "$new_episode_number" -eq "$episodes_total" ] && status="COMPLETED" || status="CURRENT"
+	[ -z "$new_episode_number" ] && send_notification "No $unit number given"
+	[ -z "$new_episode_number" ] && exit 1
+	send_notification "Updating progress for $title..."
+	[ "$new_episode_number" -eq "$total" ] && status="COMPLETED" || status="CURRENT"
 	response=$(update_progress "$((new_episode_number - 1))" "$media_id" "$status")
-	send_notification "New progress: $new_episode_number/$episodes_total episodes watched"
-	[ "$new_episode_number" -eq "$episodes_total" ] && send_notification "Completed $anime_title"
+	send_notification "New progress: $new_episode_number/$total episodes watched"
+	[ "$new_episode_number" -eq "$total" ] && send_notification "Completed $title"
 }
 
 update_status() {
@@ -618,14 +641,20 @@ case "$choice" in
 	read_manga
 	;;
 "Update (Episodes, Status, Score)")
-	update_choice=$(printf "Change Episodes Watched\nChange Status\nChange Score" | launcher "Choose an option")
-	# TODO: FIX update_episode_from_list for manga
-	media_type=$(printf "ANIME\nMANGA" | launcher "Choose a media type")
-	[ -z "$media_type" ] && exit 0
+	update_choice=$(printf "Change Episodes Watched\nChange Chapters Read\nChange Status\nChange Score" | launcher "Choose an option")
 	case "$update_choice" in
-	"Change Episodes Watched") update_episode_from_list "$media_type" ;;
-	"Change Status") update_status "$media_type" ;;
-	"Change Score") update_score "$media_type" ;;
+	"Change Episodes Watched") update_episode_from_list "ANIME" ;;
+	"Change Chapters Read") update_episode_from_list "MANGA" ;;
+	"Change Status")
+		media_type=$(printf "ANIME\nMANGA" | launcher "Choose a media type")
+		[ -z "$media_type" ] && exit 0
+		update_status "$media_type"
+		;;
+	"Change Score")
+		media_type=$(printf "ANIME\nMANGA" | launcher "Choose a media type")
+		[ -z "$media_type" ] && exit 0
+		update_score "$media_type"
+		;;
 	esac
 	;;
 "Info")
@@ -654,8 +683,5 @@ case "$choice" in
 	[ -z "$progress" ] && progress="0"
 	[ "$json_output" = "true" ] || send_notification "Disclaimer: you need to finish the first chapter before you can update your progress" "5000"
 	read_manga
-	;;
-*)
-	notify-send "Error: invalid choice" && exit 1
 	;;
 esac
