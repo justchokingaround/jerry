@@ -14,9 +14,19 @@ MINGW* | *Msys) separator=';' && path_thing='' ;;
 *) separator=':' && path_thing="\\" ;;
 esac
 command -v notify-send >/dev/null 2>&1 && notify="true" || notify="false"
+send_notification() {
+	[ -n "$json_output" ] && return
+	[ "$use_external_menu" = "0" ] && printf "\33[2K\r\033[1;34m%s\n\033[0m" "$1" && return
+	[ -z "$2" ] && timeout=3000 || timeout="$2"
+	if [ "$notify" = "true" ]; then
+		[ -z "$3" ] && notify-send "$1" -t "$timeout"
+		[ -n "$3" ] && notify-send "$1" -t "$timeout" -i "$3" -r 1
+		# -h string:x-dunst-stack-tag:tes
+	fi
+}
 dep_ch() {
 	for dep; do
-		command -v "$dep" >/dev/null || notify-send "Program \"$dep\" not found. Please install it."
+		command -v "$dep" >/dev/null || send_notification "Program \"$dep\" not found. Please install it."
 	done
 }
 dep_ch "grep" "sed" "awk" "curl" "fzf" "mpv" || true
@@ -104,17 +114,6 @@ https://anilist.co/api/v2/oauth/authorize?client_id=9857&response_type=token : "
 			-H "Authorization: Bearer $access_token" \
 			-d "{\"query\":\"query { Viewer { id } }\"}" | sed -nE "s@.*\"id\":([0-9]*).*@\1@p") &&
 		echo "$user_id" >"$cache_dir/anilist_user_id.txt"
-}
-
-send_notification() {
-	[ -n "$json_output" ] && return
-	[ "$use_external_menu" = "0" ] && printf "\33[2K\r\033[1;34m%s\n\033[0m" "$1" && return
-	[ -z "$2" ] && timeout=3000 || timeout="$2"
-	if [ "$notify" = "true" ]; then
-		[ -z "$3" ] && notify-send "$1" -t "$timeout"
-		[ -n "$3" ] && notify-send "$1" -t "$timeout" -i "$3" -r 1
-		# -h string:x-dunst-stack-tag:tes
-	fi
 }
 
 launcher() {
@@ -406,8 +405,12 @@ get_episode_info() {
 get_chapter_info() {
 	manga_response=$(curl -s "https://$consumet_base/meta/anilist-manga/info/${media_id}?provider=${manga_provider}" | tr "{|}" "\n")
 	case $manga_provider in
-	mangakalot)
+	"mangakalot")
 		chapter_info=$(printf "%s" "$manga_response" | sed -nE "s@\"id\":\"(.*-chapter-$((progress + 1)))\",\"title\":\"([^\"]*)\",\"releaseDate\".*@\1\t\2@p")
+		;;
+	"mangahere")
+		temp_progress=$(printf "%03d" "$((progress + 1))")
+		chapter_info=$(printf "%s" "$manga_response" | sed -nE "s@\"id\":\"(.*/c$temp_progress)\",\"title\":\"(.*)\",\"releasedDate\".*@\1\t\2@p")
 		;;
 	*)
 		send_notification "Provider not supported" "2000"
@@ -468,7 +471,7 @@ download_images() {
 
 get_chapter_links() {
 	case $manga_provider in
-	mangakalot)
+	"mangakalot" | "mangahere")
 		json_response=$(curl -s "https://$consumet_base/meta/anilist-manga/read?chapterId=${chapter_id}&provider=${manga_provider}")
 		chapter_links=$(printf "%s" "$json_response" | tr "{|}" "\n" | sed -nE "s@.*\"page\":([0-9]*).*\"img\":\"([^\"]*)\".*@\2\t\1@p")
 		referrer=$(printf "%s" "$json_response" | sed -nE "s@.*\"Referer\":\"([^\"]*)\".*@\1@p")
@@ -614,8 +617,8 @@ while [ $# -gt 0 ]; do
 	-n | --number) progress=$(($2 - 1)) && shift 2 ;;
 	-p | --provider) preferred_provider="$2" && shift 2 ;;
 	-q | --quality) video_quality="$2" && shift 2 ;;
-	-u | --update) update_script ;;
-	-v | --version) printf "Jerry Version: %s\n" "$JERRY_VERSION" && exit 0 ;;
+	-u | -U | --update) update_script ;;
+	-v | -V | --version) printf "Jerry Version: %s\n" "$JERRY_VERSION" && exit 0 ;;
 	*) query="$(printf "%s" "$query $1" | sed "s/^ //;s/ /+/g")" && shift && choice="Watch New Anime" ;;
 	esac
 done
