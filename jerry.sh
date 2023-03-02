@@ -297,7 +297,7 @@ update_progress() {
 		-H 'Content-Type: application/json' \
 		-H "Authorization: Bearer $access_token" \
 		-d "{\"query\":\"mutation(\$id:Int \$mediaId:Int \$status:MediaListStatus \$score:Float \$progress:Int \$progressVolumes:Int \$repeat:Int \$private:Boolean \$notes:String \$customLists:[String]\$hiddenFromStatusLists:Boolean \$advancedScores:[Float]\$startedAt:FuzzyDateInput \$completedAt:FuzzyDateInput){SaveMediaListEntry(id:\$id mediaId:\$mediaId status:\$status score:\$score progress:\$progress progressVolumes:\$progressVolumes repeat:\$repeat private:\$private notes:\$notes customLists:\$customLists hiddenFromStatusLists:\$hiddenFromStatusLists advancedScores:\$advancedScores startedAt:\$startedAt completedAt:\$completedAt){id mediaId status score advancedScores progress progressVolumes repeat priority private hiddenFromStatusLists customLists notes updatedAt startedAt{year month day}completedAt{year month day}user{id name}media{id title{userPreferred}coverImage{large}type format status episodes volumes chapters averageScore popularity isAdult startDate{year}}}}\",\"variables\":{\"status\":\"$3\",\"progress\":$(($1 + 1)),\"mediaId\":$2}}"
-	[ "$3" = "COMPLETED" ] && send_notification "Completed $anime_title" "5000" && sed -i "/$media_id/d" "$history_file" && exit
+	[ "$3" = "COMPLETED" ] && send_notification "Completed $anime_title" "5000" && sed -i "/$media_id/d" "$history_file"
 }
 
 update_episode_from_list() {
@@ -524,22 +524,26 @@ open_manga() {
 	pdf)
 		[ -f "$manga_dir/$manga_title/chapter_$((progress + 1))/$manga_title - Chapter $((progress + 1)).pdf" ] || convert_to_pdf
 		send_notification "Opening $manga_title - Chapter: $((progress + 1)) $chapter_title" "1000"
-		"$manga_opener" "$manga_dir/$manga_title/chapter_$((progress + 1))/$manga_title - Chapter $((progress + 1)).pdf"
+		${manga_opener} "$manga_dir/$manga_title/chapter_$((progress + 1))/$manga_title - Chapter $((progress + 1)).pdf"
 		;;
 	jpg)
 		send_notification "Opening $manga_title - Chapter: $((progress + 1)) $chapter_title" "1000"
-		"$manga_opener" "$manga_dir/$manga_title/chapter_$((progress + 1))"
+		${manga_opener} "$manga_dir/$manga_title/chapter_$((progress + 1))"
 		;;
 	esac
-	completed_chapter=$(printf "Yes\nNo" | launcher "Do you want to update progress? [y/N]")
+	case $choice in
+	"Read Manga") completed_chapter=$(printf "Yes\nNo" | launcher "Do you want to update progress? [y/N]") ;;
+	"Binge Read Manga") completed_chapter=$(printf "Yes\nNo\nExit binge mode" | launcher "Do you want to update progress? [y/N]") ;;
+	esac
 	case "$completed_chapter" in
 	"Yes" | "yes" | "y" | "Y")
 		update_progress "$progress" "$media_id" "$status"
 		send_notification "Updated progress to $((progress + 1))/$chapters_total chapters read"
 		;;
-	*)
+	"No" | "no" | "n" | "N")
 		send_notification "Your progress has not been updated"
 		;;
+	*) exit 0 ;;
 	esac
 }
 
@@ -627,21 +631,43 @@ done
 configuration
 [ "$(printf "%s" "$subs_language" | head -c 1)" = "$(printf "%s" "$subs_language" | head -c 1 | tr '[:upper:]' '[:lower:]')" ] && subs_language="$(printf "%s" "$subs_language" | head -c 1 | tr '[:lower:]' '[:upper:]')$(printf "%s" "$subs_language" | tail -c +2)"
 
-[ -z "$choice" ] && choice=$(printf "Watch Anime\nRead Manga\nUpdate (Episodes, Status, Score)\nInfo\nWatch New Anime\nRead New Manga\n" | launcher "Choose an option")
-case "$choice" in
-"Watch Anime")
+read_manga_option_choice() {
+	[ -z "$media_id" ] && get_from_list "CURRENT" "MANGA"
+	[ -z "$manga_title" ] && exit 0
+	send_notification "Loading $manga_title..." "1000"
+	query="$manga_title"
+	read_manga
+}
+
+watch_anime_option_choice() {
 	get_from_list "CURRENT" "ANIME"
 	[ -z "$anime_title" ] && exit 0
 	send_notification "Loading $anime_title..." "1000"
 	query="$anime_title"
 	watch_anime
+}
+
+[ -z "$choice" ] && choice=$(printf "Watch Anime\nRead Manga\nBinge Read Manga\nBinge Watch Anime\nUpdate (Episodes, Status, Score)\nInfo\nWatch New Anime\nRead New Manga\n" | launcher "Choose an option")
+case "$choice" in
+"Watch Anime") watch_anime_option_choice && exit 0 ;;
+"Read Manga") read_manga_option_choice && exit 0 ;;
+"Binge Read Manga")
+	while :; do
+		read_manga_option_choice
+		case $completed_chapter in
+		"No" | "no" | "n" | "N") break ;;
+		esac
+	done
 	;;
-"Read Manga")
-	get_from_list "CURRENT" "MANGA"
-	[ -z "$manga_title" ] && exit 0
-	send_notification "Loading $manga_title..." "1000"
-	query="$manga_title"
-	read_manga
+"Binge Watch Anime")
+	while :; do
+		watch_anime_option_choice
+		binge_watching=$(printf "Yes\nNo" | launcher "Do you want to keep binge watching? [y/N]")
+		case $binge_watching in
+		"Yes" | "yes" | "y" | "Y") continue ;;
+		"No" | "no" | "n" | "N") break ;;
+		esac
+	done
 	;;
 "Update (Episodes, Status, Score)")
 	update_choice=$(printf "Change Episodes Watched\nChange Chapters Read\nChange Status\nChange Score" | launcher "Choose an option")
