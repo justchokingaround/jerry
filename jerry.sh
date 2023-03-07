@@ -19,8 +19,8 @@ send_notification() {
 	[ "$use_external_menu" = "0" ] && printf "\33[2K\r\033[1;34m%s\n\033[0m" "$1" && return
 	[ -z "$2" ] && timeout=3000 || timeout="$2"
 	if [ "$notify" = "true" ]; then
-		[ -z "$3" ] && notify-send "$1" -t "$timeout"
-		[ -n "$3" ] && notify-send "$1" -t "$timeout" -i "$3" -r 1
+		[ -z "$3" ] && notify-send "$1" -t "$timeout" -h string:x-dunst-stack-tag:tes
+		[ -n "$3" ] && notify-send "$1" -t "$timeout" -i "$3" -r 1 -h string:x-dunst-stack-tag:tes
 		# -h string:x-dunst-stack-tag:tes
 	fi
 }
@@ -89,10 +89,10 @@ configuration() {
 	[ -z "$preferred_provider" ] && provider="zoro" || provider="$preferred_provider"
 	[ -z "$manga_provider" ] && manga_provider="mangakalot"
 	[ -z "$subs_language" ] && subs_language="English"
-    case "$dub" in
-        "true" | "dub" | 1) dub="dub" ;;
-        *) dub="sub" ;;
-    esac
+	case "$dub" in
+	"true" | "dub" | 1) dub="dub" ;;
+	*) dub="sub" ;;
+	esac
 	[ -z "$use_external_menu" ] && use_external_menu="0"
 	[ -z "$video_quality" ] && video_quality="best"
 	[ -z "$history_file" ] && history_file="$HOME/.cache/anime_history"
@@ -393,7 +393,10 @@ get_video_url_quality() {
 }
 
 get_episode_info() {
-	anime_response=$(curl -s "https://$consumet_base/meta/anilist/info/${media_id}?provider=${provider}&dub=true" | tr "{|}" "\n")
+	case "$dub" in
+	"true" | "dub" | 1) anime_response=$(curl -s "https://$consumet_base/meta/anilist/info/${media_id}?provider=${provider}&dub=true" | tr "{|}" "\n") ;;
+	*) anime_response=$(curl -s "https://$consumet_base/meta/anilist/info/${media_id}?provider=${provider}" | tr "{|}" "\n") ;;
+	esac
 	case $provider in
 	zoro)
 		episode_info=$(printf "%s" "$anime_response" | sed -nE "s@\"id\":\"([^\"]*)\",\"title\":\"([^\"]*)\",.*\"number\":$((progress + 1)).*@\1\t\2@p" | head -1)
@@ -427,8 +430,8 @@ get_episode_links() {
 	zoro)
 		episode_id=$(printf "%s" "$episode_id" | sed -nE 's@.*episode\$([0-9]*)\$.*@\1@p')
 		# source_id=$(curl -s "https://zoro.to/ajax/v2/episode/servers?episodeId=$episode_id" | tr "<|>" "\n" | sed -nE 's_.*data-id=\\"([^"]*)\\".*_\1_p' | head -1)
-        source_id=$(curl -s "https://zoro.to/ajax/v2/episode/servers?episodeId=$episode_id" | sed "s/\\\n/\n/g" |
-            grep -B2 Vidcloud | sed -nE 's_.*data-type=\\"'"$dub"'\\" data-id=\\"([^"]*)\\".*_\1_p')
+		source_id=$(curl -s "https://zoro.to/ajax/v2/episode/servers?episodeId=$episode_id" | sed "s/\\\n/\n/g" |
+			grep -B2 Vidcloud | sed -nE 's_.*data-type=\\"'"$dub"'\\" data-id=\\"([^"]*)\\".*_\1_p')
 		embed_link=$(curl -s "https://zoro.to/ajax/v2/episode/sources?id=$source_id" | sed -nE "s_.*\"link\":\"([^\"]*)\".*_\1_p")
 
 		# get the juicy links
@@ -618,7 +621,7 @@ while [ $# -gt 0 ]; do
 	case "$1" in
 	-c | --continue) choice="Watch Anime" && shift ;;
 	-d | --discord) discord_presence="true" && shift ;;
-    --dub) dub="dub" && shift ;;
+	--dub) dub="dub" && shift ;;
 	-D | --dmenu) use_external_menu="1" && shift ;;
 	-e | --edit) [ -f "$config_file" ] && "$jerry_editor" "$config_file" && exit 0 || echo "$default_config" >"$config_file" && "$jerry_editor" "$config_file" && exit 0 ;;
 	-h | --help) usage && exit 0 ;;
@@ -664,7 +667,7 @@ case "$choice" in
 		case $completed_chapter in
 		"No" | "no" | "n" | "N") break ;;
 		esac
-        sleep 2
+		sleep 2
 	done
 	;;
 "Binge Watch Anime")
@@ -675,7 +678,7 @@ case "$choice" in
 		"Yes" | "yes" | "y" | "Y") continue ;;
 		"No" | "no" | "n" | "N") break ;;
 		esac
-        sleep 2
+		sleep 2
 	done
 	;;
 "Update (Episodes, Status, Score)")
