@@ -1,3 +1,6 @@
+![jerry](https://user-images.githubusercontent.com/44473782/223358601-a7eaf402-e37d-41be-9fe1-c55e76706c5d.png)
+
+
 # Jerry
 Jerry is a command line tool for streaming anime from various providers. It can search for and play anime, continue watching from the currently watching list, and has various options for customization. The core idea of the script is that it allows users to watch anime in sync with their anilist account, automatically updating and tracking all progress (down to minutes of an episode watched).
 
