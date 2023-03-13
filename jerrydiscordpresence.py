@@ -6,9 +6,7 @@ import time
 import httpx
 from pypresence import Presence
 
-# id of ani-cli as title
-# CLIENT_ID = "963136145691140097"
-CLIENT_ID = "995856834558689410"
+CLIENT_ID = "1084791136981352558"
 ENDPONT = "https://kitsu.io/api/"
 
 rpc_client = Presence(CLIENT_ID)
