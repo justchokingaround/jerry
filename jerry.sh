@@ -442,12 +442,12 @@ get_episode_links() {
 		source_id=$(printf "%s" "$parse_embed" | cut -f3)
 		embed_type=$(printf "%s" "$parse_embed" | cut -f2)
 
-		key="$(curl -s "https://github.com/enimax-anime/key/blob/e${embed_type}/key.txt" | sed -nE "s_.*js-file-line\">(.*)<.*_\1_p")"
 		json_data=$(curl -s "${provider_link}/ajax/embed-${embed_type}/getSources?id=${source_id}" -H "X-Requested-With: XMLHttpRequest")
 		# printf %s '{"sources":[{"file":"https://c-an-ca2.betterstream.cc:2223/hls-playback/d634f2a53fcd906d3ebf0be32d908e49421f16be6c784a520bcb68d6071f5c5bd7bb65fb2bfa1d15462a9d0762234e042823f4e379be38e326b5912856d3a0a0d377e71bc0b67e1a97814a016fd999b9fbccda9062f5db1bab8fe0f70c17fddd1caca792fd9d5242fd523e0dc7ab7f32606e25074a5fd6fb3b9cf47bb762b35ce04a8731c0572d925f740095e854bbb70da5c81d26e1c1bf4af47903e91a918818e29203ef8cb83f0983fe1e410ca7e3/master.m3u8","type":"hls"}],"sourcesBackup":[],"tracks":[{"file":"https://cc.zorores.com/33/ed/33edf30f81f84bb58b41f070bff30e45/eng-2.vtt","label":"English","kind":"captions","default":true},{"file":"https://prev.zorores.com/_a_preview/ca/ca777f583acc6411a8cb344d22361627/thumbnails/sprite.vtt","kind":"thumbnails"}],"encrypted":false,"intro":{"start":0,"end":111},"outro":{"start":0,"end":0},"server":1}'
 		encrypted=$(printf "%s" "$json_data" | sed -nE "s_.*\"encrypted\":([^\,]*)\,.*_\1_p")
 		case "$encrypted" in
 		"true")
+			key="$(curl -s "https://github.com/enimax-anime/key/blob/e${embed_type}/key.txt" | sed -nE "s_.*js-file-line\">(.*)<.*_\1_p")"
 			video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | sed -nE "s_.*\"sources\":\"([^\"]*)\".*_\1_p" | base64 -d |
 				openssl enc -aes-256-cbc -d -md md5 -k "$key" 2>/dev/null | sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p")
 			;;
