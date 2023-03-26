@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2154,SC2086,SC1090
 
-JERRY_VERSION=1.2.3
+JERRY_VERSION=1.2.4
 
 anilist_base="https://graphql.anilist.co"
 config_file="$HOME/.config/jerry/jerry.conf"
@@ -314,10 +314,10 @@ get_episode_links() {
 		"true")
 			key="$(curl -s "https://github.com/enimax-anime/key/blob/e${embed_type}/key.txt" | sed -nE "s_.*js-file-line\">(.*)<.*_\1_p")"
 			video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | sed -nE "s_.*\"sources\":\"([^\"]*)\".*_\1_p" | base64 -d |
-				openssl enc -aes-256-cbc -d -md md5 -k "$key" 2>/dev/null | sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p")
+				openssl enc -aes-256-cbc -d -md md5 -k "$key" 2>/dev/null | sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p" | head -1)
 			;;
 		"false")
-			video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p")
+			video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p" | head -1)
 			;;
 		esac
 		[ -z "$video_link" ] && provider="gogoanime" && send_notification "No video links found from zoro, trying gogoanime" && provider="gogoanime" && get_episode_info
