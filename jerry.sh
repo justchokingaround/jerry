@@ -4,11 +4,13 @@
 JERRY_VERSION=1.2.4
 
 anilist_base="https://graphql.anilist.co"
-config_file="$HOME/.config/jerry/jerry.conf"
-cache_dir="$HOME/.cache/jerry"
+config=${XDG_CONFIG_HOME:-$HOME/.config}
+cache=${XDG_CACHE_HOME:-$HOME/.cache}
+config_file="$config/jerry/jerry.conf"
+cache_dir="$cache/.cache/jerry"
 command -v bat >/dev/null 2>&1 && display="bat" || display="less"
 jerry_editor=${VISUAL:-${EDITOR:-vim}}
-default_config="discord_presence=false\nprovider=zoro\nsubs_language=English\nuse_external_menu=0\nvideo_quality=best\nhistory_file=$HOME/.cache/anime_history\njerry_editor=$jerry_editor\nimages_cache_dir=\"/tmp/jerry-images\"\nimage_preview=false\nimage_config_path=\"$HOME/.config/rofi/styles/image-preview.rasi"\"
+default_config="discord_presence=false\nprovider=zoro\nsubs_language=English\nuse_external_menu=0\nvideo_quality=best\nhistory_file=$cache/anime_history\njerry_editor=$jerry_editor\nimages_cache_dir=\"/tmp/jerry-images\"\nimage_preview=false\nimage_config_path=\"$config/rofi/styles/image-preview.rasi"\"
 case "$(uname -s)" in
 MINGW* | *Msys) separator=';' && path_thing='' ;;
 *) separator=':' && path_thing="\\" ;;
@@ -58,7 +60,7 @@ usage() {
     -v, --version
       Show the version of the script
 
-    Note: 
+    Note:
       All arguments can be specified in the config file as well.
       If an argument is specified in both the config file and the command line, the command line argument will be used.
 
@@ -71,17 +73,17 @@ usage() {
 }
 
 configuration() {
-	[ ! -d "$HOME/.config/jerry" ] && mkdir -p "$HOME/.config/jerry"
+	[ ! -d "$config/jerry" ] && mkdir -p "$config/jerry"
 	[ -f "$config_file" ] && . "${config_file}"
 	[ -z "$discord_presence" ] && discord_presence="false"
 	[ -z "$preferred_provider" ] && provider="zoro" || provider="$preferred_provider"
 	[ -z "$subs_language" ] && subs_language="English"
 	[ -z "$use_external_menu" ] && use_external_menu="0"
 	[ -z "$video_quality" ] && video_quality="best"
-	[ -z "$history_file" ] && history_file="$HOME/.cache/anime_history"
+	[ -z "$history_file" ] && history_file="$cache/anime_history"
 	[ -z "$images_cache_dir" ] && images_cache_dir="/tmp/jerry-images"
 	[ -z "$image_preview" ] && image_preview="false"
-	[ -z "$image_config_path" ] && image_config_path="$HOME/.config/rofi/styles/image-preview.rasi"
+	[ -z "$image_config_path" ] && image_config_path="$config/rofi/styles/image-preview.rasi"
 }
 
 check_credentials() {
