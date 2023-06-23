@@ -6,6 +6,7 @@ anilist_base="https://graphql.anilist.co"
 config_file="$HOME/.config/jerry/jerry.conf"
 jerry_editor=${VISUAL:-${EDITOR}}
 tmp_dir="/tmp/jerry"
+tmp_position="/tmp/jerry_position"
 image_config_path="$HOME/.config/rofi/styles/launcher.rasi"
 
 if [ "$1" = "--edit" ] || [ "$1" = "-e" ]; then
@@ -38,12 +39,15 @@ case "$(uname -s)" in
 esac
 command -v notify-send >/dev/null 2>&1 && notify="true" || notify="false"
 send_notification() {
-    [ -n "$json_output" ] && return
-    [ "$use_external_menu" = "0" ] && printf "\33[2K\r\033[1;34m%s\n\033[0m" "$1" && return
+    [ "$json_output" = 1 ] && return
+    if [ "$use_external_menu" = "0" ] || [ "$use_external_menu" = "" ]; then
+        [ -z "$4" ] && printf "\33[2K\r\033[1;34m%s\n\033[0m" "$1" && return
+        [ -n "$4" ] && printf "\33[2K\r\033[1;34m%s - %s\n\033[0m" "$1" "$4" && return
+    fi
     [ -z "$2" ] && timeout=3000 || timeout="$2"
     if [ "$notify" = "true" ]; then
-        [ -z "$3" ] && notify-send "$1" -t "$timeout" -h string:x-dunst-stack-tag:tes
-        [ -n "$3" ] && notify-send "$1" -t "$timeout" -i "$3" -r 1 -h string:x-dunst-stack-tag:tes
+        [ -z "$3" ] && notify-send "$1" "$4" -t "$timeout" -h string:x-dunst-stack-tag:tes
+        [ -n "$3" ] && notify-send "$1" "$4" -t "$timeout" -i "$3" string:x-dunst-stack-tag:tes
         # -h string:x-dunst-stack-tag:tes
     fi
 }
@@ -66,7 +70,9 @@ configuration() {
     #shellcheck disable=1090
     [ -f "$config_file" ] && . "${config_file}"
     [ -z "$player" ] && player="mpv"
+    [ -z "$provider" ] && provider="yugen"
     [ -z "$download_dir" ] && download_dir="$PWD"
+    [ -z "$history_file" ] && history_file="$data_dir/jerry_history.txt"
     [ -z "$subs_language" ] && subs_language="english"
     subs_language="$(printf "%s" "$subs_language" | cut -c2-)"
     [ -z "$use_external_menu" ] && use_external_menu="1"
@@ -90,7 +96,7 @@ https://anilist.co/api/v2/oauth/authorize?client_id=9857&response_type=token : "
             -H "Content-Type: application/json" \
             -H "Accept: application/json" \
             -H "Authorization: Bearer $access_token" \
-            -d "{\"query\":\"query { Viewer { id } }\"}" | sed -nE "s@.*\"id\":([0-9]*).*@\1@p") &&
+            -d "{\"query\":\"query { Viewer { id } }\"}" | $sed -nE "s@.*\"id\":([0-9]*).*@\1@p") &&
         echo "$user_id" >"$data_dir/anilist_user_id.txt"
 }
 
@@ -140,48 +146,149 @@ get_anime_from_list() {
         -H 'Content-Type: application/json' \
         -H "Authorization: Bearer $access_token" \
         -d "{\"query\":\"query(\$userId:Int,\$userName:String,\$type:MediaType){MediaListCollection(userId:\$userId,userName:\$userName,type:\$type){lists{name isCustomList isCompletedList:isSplitCompletedList entries{...mediaListEntry}}user{id name avatar{large}mediaListOptions{scoreFormat rowOrder animeList{sectionOrder customLists splitCompletedSectionByFormat theme}mangaList{sectionOrder customLists splitCompletedSectionByFormat theme}}}}}fragment mediaListEntry on MediaList{id mediaId status score progress progressVolumes repeat priority private hiddenFromStatusLists customLists advancedScores notes updatedAt startedAt{year month day}completedAt{year month day}media{id title{userPreferred romaji english native}coverImage{extraLarge large}type format status(version:2)episodes volumes chapters averageScore popularity isAdult countryOfOrigin genres bannerImage startDate{year month day}}}\",\"variables\":{\"userId\":$user_id,\"type\":\"ANIME\"}}" |
-        tr "\[|\]" "\n" | sed -nE "s@.*\"mediaId\":([0-9]*),\"status\":\"$1\",\"score\":(.*),\"progress\":([0-9]*),.*\"userPreferred\":\"([^\"]*)\".*\"coverImage\":\{\"extraLarge\":\"([^\"]*)\".*\"episodes\":([0-9]*).*@\5\t\1\t\4 \3|\6 episodes@p" | sed 's/\\\//\//g')
+        tr "\[|\]" "\n" | $sed -nE "s@.*\"mediaId\":([0-9]*),\"status\":\"$1\",\"score\":(.*),\"progress\":([0-9]*),.*\"userPreferred\":\"([^\"]*)\".*\"coverImage\":\{\"extraLarge\":\"([^\"]*)\".*\"episodes\":([0-9]*).*@\5\t\1\t\4 \3|\6 episodes@p" | $sed 's/\\\//\//g')
     case "$image_preview" in
         "true" | 1)
             download_thumbnails "$anime_list" "2"
             select_desktop_entry ""
             [ -z "$choice" ] && exit 1
             id=$(printf "%s" "$choice" | cut -d\  -f1)
-            title=$(printf "%s" "$choice" | sed -nE "s@$id (.*) [0-9|]* episodes@\1@p")
-            progress=$(printf "%s" "$choice" | sed -nE "s@.* ([0-9]*)\|[0-9]* episodes@\1@p")
-            episodes_total=$(printf "%s" "$choice" | sed -nE "s@.*\|([0-9]*) episodes@\1@p")
+            title=$(printf "%s" "$choice" | $sed -nE "s@$id (.*) [0-9|]* episodes@\1@p")
+            progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9]* episodes@\1@p")
+            episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9]*) episodes@\1@p")
             ;;
         *)
-            send_notification "Jerry" "TODO"
+            send_notification "Jerry" "" "" "TODO"
             ;;
     esac
 }
 
 get_episode_info() {
-    zoro_id=$(curl -s "https://raw.githubusercontent.com/MALSync/MAL-Sync-Backup/master/data/anilist/anime/$id.json" | tr -d '\n' | sed -nE "s@.*\"Zoro\":[[:space:]{]*\"([0-9]*)\".*@\1@p")
-    episode_info=$(curl -s "https://zoro.to/ajax/v2/episode/list/$zoro_id" | sed -e "s/</\n/g" -e "s/\\\\//g" | sed -nE "s_.*a title=\"([^\"]*)\".*data-id=\"([0-9]*)\".*_\2\t\1_p" | sed -n "$((progress + 1))p")
+    case "$provider" in
+        zoro)
+            zoro_id=$(curl -s "https://raw.githubusercontent.com/MALSync/MAL-Sync-Backup/master/data/anilist/anime/$id.json" | tr -d '\n' | $sed -nE "s@.*\"Zoro\":[[:space:]{]*\"([0-9]*)\".*@\1@p")
+            episode_info=$(curl -s "https://zoro.to/ajax/v2/episode/list/$zoro_id" | $sed -e "s/</\n/g" -e "s/\\\\//g" | $sed -nE "s_.*a title=\"([^\"]*)\".*data-id=\"([0-9]*)\".*_\2\t\1_p" | $sed -n "$((progress + 1))p")
+            ;;
+        yugen)
+            response=$(curl -s "https://yugenanime.tv/discover/?q=$(printf "%s" "$title" | tr ' ' '+')" | $sed -nE "s@.*href=\"/([^\"]*)/\" title=\"([^\"]*)\".*@\2\t\1@p")
+            [ -z "$response" ] && exit 1
+            # if it is only one line long, then auto select it
+            if [ "$(printf "%s\n" "$response" | wc -l)" -eq 1 ]; then
+                send_notification "Jerry" "" "" "Since there is only one result, it was automatically selected"
+                choice=$response
+            else
+                choice=$(printf "%s" "$response" | launcher "Choose anime" 1)
+            fi
+            [ -z "$choice" ] && exit 1
+            title=$(printf "%s" "$choice" | cut -f1)
+            href=$(printf "%s" "$choice" | cut -f2)
+            tmp_episode_info=$(curl -s "https://yugenanime.tv/$href/watch/" | $sed -nE "s@.*href=\"/([^\"]*)\" title=\"([^\"]*)\".*@\1\t\2@p" | $sed -n "$((progress + 1))p")
+            tmp_href=$(printf "%s" "$tmp_episode_info" | cut -f1)
+            ep_title=$(printf "%s" "$tmp_episode_info" | cut -f2)
+            id=$(curl -s "https://yugenanime.tv/$tmp_href" | $sed -nE "s@.*id=\"main-embed\" src=\".*/e/([^/]*)/\".*@\1@p")
+            episode_info=$(printf "%s\t%s" "$id" "$ep_title")
+            ;;
+    esac
 }
 
-get_episode_links() {
-    source_id=$(curl -s "https://zoro.to/ajax/v2/episode/servers?episodeId=$episode_id" | tr "<|>" "\n" | sed -nE 's_.*data-id=\\"([^"]*)\\".*_\1_p' | head -1)
-    embed_link=$(curl -s "https://zoro.to/ajax/v2/episode/sources?id=$source_id" | sed -nE "s_.*\"link\":\"([^\"]*)\".*_\1_p")
+extract_from_json() {
+    case "$provider" in
+        zoro)
+            encrypted=$(printf "%s" "$json_data" | tr "{}" "\n" | $sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p" | grep "\.m3u8")
+            if [ -n "$encrypted" ]; then
+                video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | $sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p" | head -1)
+            else
+                key="$(curl -s "https://github.com/enimax-anime/key/blob/e${embed_type}/key.txt" | $sed -nE "s_.*js-file-line\">(.*)<.*_\1_p")"
+                encrypted_video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | $sed -nE "s_.*\"sources\":\"([^\"]*)\".*_\1_p" | head -1)
+                # ty @CoolnsX for helping me with figuring out how to implement aes in openssl
+                video_link=$(printf "%s" "$encrypted_video_link" | base64 -d |
+                    openssl enc -aes-256-cbc -d -md md5 -k "$key" 2>/dev/null | $sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p")
+                json_data=$(printf "%s" "$json_data" | $sed -e "s|${encrypted_video_link}|${video_link}|")
+            fi
+            [ -n "$quality" ] && video_link=$(printf "%s" "$video_link" | $sed -e "s|/playlist.m3u8|/$quality/index.m3u8|")
 
-    # get the juicy links
-    parse_embed=$(printf "%s" "$embed_link" | sed -nE "s_(.*)/embed-(4|6)/(.*)\?k=1\$_\1\t\2\t\3_p")
-    provider_link=$(printf "%s" "$parse_embed" | cut -f1)
-    source_id=$(printf "%s" "$parse_embed" | cut -f3)
-    embed_type=$(printf "%s" "$parse_embed" | cut -f2)
-
-    json_data=$(curl -s "${provider_link}/ajax/embed-${embed_type}/getSources?id=${source_id}" -H "X-Requested-With: XMLHttpRequest")
-    encrypted=$(printf "%s" "$json_data" | sed -nE "s_.*\"encrypted\":([^\,]*)\,.*_\1_p")
-    case "$encrypted" in
-        "true")
-            key="$(curl -s "https://github.com/enimax-anime/key/blob/e${embed_type}/key.txt" | sed -nE "s_.*js-file-line\">(.*)<.*_\1_p")"
-            video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | sed -nE "s_.*\"sources\":\"([^\"]*)\".*_\1_p" | base64 -d |
-                openssl enc -aes-256-cbc -d -md md5 -k "$key" 2>/dev/null | sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p" | head -1)
+            if [ "$json_output" = "1" ]; then
+                printf "%s\n" "$json_data"
+                exit 0
+            fi
+            subs_links=$(printf "%s" "$json_data" | tr "{}" "\n" | $sed -nE "s@\"file\":\"([^\"]*)\",\"label\":\"(.$subs_language)[,\"\ ].*@\1@p")
+            subs_arg="--sub-file"
+            num_subs=$(printf "%s" "$subs_links" | wc -l)
+            if [ "$num_subs" -gt 0 ]; then
+                subs_links=$(printf "%s" "$subs_links" | $sed -e "s/:/\\$path_thing:/g" -e "H;1h;\$!d;x;y/\n/$separator/" -e "s/$separator\$//")
+                subs_arg="--sub-files=$subs_links"
+            fi
+            [ -z "$subs_links" ] && send_notification "No subtitles found"
             ;;
-        "false")
-            video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p" | head -1)
+        yugen)
+            hls_link_1=$(printf "%s" "$json_data" | tr '{}' '\n' | $sed -nE "s@.*\"hls\": \[\"([^\"]*)\".*@\1@p")
+            # hls_link_2=$(printf "%s" "$json_data" | tr '{}' '\n' | $sed -nE "s@.*hls.*, \"([^\"]*)\".\]*@\1@p")
+            # gogo_link=$(printf "%s" "$json_data" | tr '{}' '\n' | $sed -nE "s@.*\"src\": \"([^\"]*)\", \"type\": \"embed.*@\1@p")
+            if [ -n "$quality" ]; then
+                video_link=$(printf "%s" "$hls_link_1" | $sed -e "s/\.m3u8$/\.$quality.m3u8/")
+            else
+                video_link=$hls_link_1
+            fi
+            if [ "$json_output" = "1" ]; then
+                printf "%s\n" "$json_data"
+                exit 0
+            fi
+            ;;
+    esac
+}
+
+get_json() {
+    case "$provider" in
+        zoro)
+            source_id=$(curl -s "https://zoro.to/ajax/v2/episode/servers?episodeId=$episode_id" | tr "<|>" "\n" | $sed -nE 's_.*data-id=\\"([^"]*)\\".*_\1_p' | head -1)
+            embed_link=$(curl -s "https://zoro.to/ajax/v2/episode/sources?id=$source_id" | $sed -nE "s_.*\"link\":\"([^\"]*)\".*_\1_p")
+
+            # get the juicy links
+            parse_embed=$(printf "%s" "$embed_link" | $sed -nE "s_(.*)/embed-(4|6)/(.*)\?k=1\$_\1\t\2\t\3_p")
+            provider_link=$(printf "%s" "$parse_embed" | cut -f1)
+            source_id=$(printf "%s" "$parse_embed" | cut -f3)
+            embed_type=$(printf "%s" "$parse_embed" | cut -f2)
+
+            json_data=$(curl -s "${provider_link}/ajax/embed-${embed_type}/getSources?id=${source_id}" -H "X-Requested-With: XMLHttpRequest")
+            ;;
+        yugen)
+            json_data=$(curl -s 'https://yugenanime.tv/api/embed/' -X POST -H 'X-Requested-With: XMLHttpRequest' --data-raw "id=$episode_id&ac=0")
+            ;;
+    esac
+
+    [ -n "$json_data" ] && extract_from_json
+}
+
+play_video() {
+    case "$provider" in
+        zoro)
+            displayed_title="$title - Ep $((progress + 1)) $episode_title"
+            ;;
+        yugen)
+            displayed_title="$title - Ep $episode_title"
+            ;;
+    esac
+    case $player in
+        mpv)
+            if [ -n "$subs_links" ]; then
+                mpv "$video_link" "$subs_arg" "$subs_links" --force-media-title="$displayed_title" 2>&1 | tee $tmp_position
+            else
+                mpv "$video_link" --force-media-title="$displayed_title" 2>&1 | tee $tmp_position
+            fi
+            stopped_at=$(cat $tmp_position | $sed -nE "s@.*AV: ([0-9:]*) / ([0-9:]*) \(([0-9]*)%\).*@\1@p" | tail -1)
+            percentage_progress=$(cat $tmp_position | $sed -nE "s@.*AV: ([0-9:]*) / ([0-9:]*) \(([0-9]*)%\).*@\3@p" | tail -1)
+            if [ "$percentage_progress" -gt 85 ]; then
+                response=$(update_episode "$progress" "$media_id" "$status")
+                if printf "%s" "$response" | grep -q "errors"; then
+                    send_notification "Error updating progress"
+                else
+                    send_notification "Updated progress to $((progress + 1))/$episodes_total episodes watched"
+                    [ -n "$history" ] && $sed -i "/^$media_id/d" "$history_file"
+                fi
+            else
+                send_notification "Current progress" "" "" "$progress/$episodes_total episodes watched"
+                send_notification "Your progress has not been updated"
+            fi
             ;;
     esac
 }
@@ -191,13 +298,15 @@ watch_anime() {
     get_episode_info
 
     if [ -z "$episode_info" ]; then
-        send_notification "Error" "$title not found"
+        send_notification "Error" "" "" "$title not found"
         exit 1
     fi
     episode_id=$(printf "%s" "$episode_info" | cut -f1)
     episode_title=$(printf "%s" "$episode_info" | cut -f2)
 
-    get_episode_links
+    get_json
+    [ -z "$video_link" ] && exit 1
+    play_video
 
 }
 
@@ -209,10 +318,10 @@ main() {
         "Watch")
             get_anime_from_list "CURRENT"
             if [ -z "$id" ] || [ -z "$title" ] || [ -z "$progress" ] || [ -z "$episodes_total" ]; then
-                send_notification "Jerry" "Error, no anime found"
+                send_notification "Jerry" "" "" "Error, no anime found"
                 exit 1
             fi
-            send_notification "Loading" "$title" "1000"
+            send_notification "Loading" "" "" "$title"
             watch_anime
             ;;
     esac
