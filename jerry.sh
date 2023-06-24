@@ -2,6 +2,8 @@
 
 JERRY_VERSION=2.0.0
 
+# TODO: Add spaces for all launchers
+
 anilist_base="https://graphql.anilist.co"
 config_file="$HOME/.config/jerry/jerry.conf"
 jerry_editor=${VISUAL:-${EDITOR}}
@@ -78,8 +80,8 @@ configuration() {
     [ -z "$history_file" ] && history_file="$data_dir/jerry_history.txt"
     [ -z "$subs_language" ] && subs_language="english"
     subs_language="$(printf "%s" "$subs_language" | cut -c2-)"
-    [ -z "$use_external_menu" ] && use_external_menu="1"
-    [ -z "$image_preview" ] && image_preview="1"
+    [ -z "$use_external_menu" ] && use_external_menu=1
+    [ -z "$image_preview" ] && image_preview=1
     [ -z "$preview_window_size" ] && preview_window_size=up:60%:wrap
     [ -z "$ueberzug_x" ] && ueberzug_x=10
     [ -z "$ueberzug_y" ] && ueberzug_y=3
@@ -168,9 +170,24 @@ download_thumbnails() {
     sleep "$2"
 }
 
+image_preview_fzf() {
+    UB_PID_FILE="/tmp/.$(uuidgen)"
+    if [ -z "$ueberzug_output" ]; then
+        ueberzugpp layer --no-stdin --silent --use-escape-codes --pid-file "$UB_PID_FILE"
+    else
+        ueberzugpp layer -o "$ueberzug_output" --no-stdin --silent --use-escape-codes --pid-file "$UB_PID_FILE"
+    fi
+    UB_PID="$(cat "$UB_PID_FILE")"
+    JERRY_UEBERZUG_SOCKET=/tmp/ueberzugpp-"$UB_PID".socket
+    choice=$(find "$images_cache_dir" -type f -printf "%f\n" | fzf -i -q "$1" --cycle --preview-window="$preview_window_size" --preview="ueberzugpp cmd -s $JERRY_UEBERZUG_SOCKET -i fzfpreview -a add -x $ueberzug_x -y $ueberzug_y --max-width $ueberzug_max_width --max-height $ueberzug_max_height -f $images_cache_dir/{}" --reverse --with-nth 1..-2 -d " ")
+    ueberzugpp cmd -s "$JERRY_UEBERZUG_SOCKET" -a exit
+}
+
 select_desktop_entry() {
     if [ "$use_external_menu" = "1" ]; then
         [ -n "$image_config_path" ] && choice=$(rofi -show drun -drun-categories jerry -filter "$1" -show-icons -theme "$image_config_path" | $sed -nE "s@.*/([0-9]*)\.desktop@\1@p") 2>/dev/null || choice=$(rofi -show drun -drun-categories jerry -filter "$1" -show-icons | $sed -nE "s@.*/([0-9]*)\.desktop@\1@p") 2>/dev/null
+    else
+        image_preview_fzf "$1"
     fi
 }
 
@@ -181,20 +198,46 @@ get_anime_from_list() {
         -H "Authorization: Bearer $access_token" \
         -d "{\"query\":\"query(\$userId:Int,\$userName:String,\$type:MediaType){MediaListCollection(userId:\$userId,userName:\$userName,type:\$type){lists{name isCustomList isCompletedList:isSplitCompletedList entries{...mediaListEntry}}user{id name avatar{large}mediaListOptions{scoreFormat rowOrder animeList{sectionOrder customLists splitCompletedSectionByFormat theme}mangaList{sectionOrder customLists splitCompletedSectionByFormat theme}}}}}fragment mediaListEntry on MediaList{id mediaId status score progress progressVolumes repeat priority private hiddenFromStatusLists customLists advancedScores notes updatedAt startedAt{year month day}completedAt{year month day}media{id title{userPreferred romaji english native}coverImage{extraLarge large}type format status(version:2)episodes volumes chapters averageScore popularity isAdult countryOfOrigin genres bannerImage startDate{year month day}}}\",\"variables\":{\"userId\":$user_id,\"type\":\"ANIME\"}}" |
         tr "\[\]" "\n" | $sed -nE "s@.*\"mediaId\":([0-9]*),\"status\":\"$1\",\"score\":(.*),\"progress\":([0-9]*),.*\"userPreferred\":\"([^\"]*)\".*\"coverImage\":\{\"extraLarge\":\"([^\"]*)\".*\"episodes\":([^,]*),.*@\5\t\1\t\4 \3|\6 episodes@p" | $sed 's/\\\//\//g;s/null/?/')
-    case "$image_preview" in
-        "true" | 1)
-            download_thumbnails "$anime_list" "2"
-            select_desktop_entry ""
-            [ -z "$choice" ] && exit 1
-            media_id=$(printf "%s" "$choice" | cut -d\  -f1)
-            title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?|]* episodes@\1@p")
-            progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes@\1@p")
-            episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes@\1@p")
-            ;;
-        *)
-            send_notification "Jerry" "" "" "TODO"
-            ;;
-    esac
+    if [ "$use_external_menu" = 1 ]; then
+        case "$image_preview" in
+            "true" | 1)
+                download_thumbnails "$anime_list" "2"
+                select_desktop_entry ""
+                [ -z "$choice" ] && exit 1
+                media_id=$(printf "%s" "$choice" | cut -d\  -f1)
+                title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?|]* episodes@\1@p")
+                progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes@\1@p")
+                ;;
+            *)
+                tmp_anime_list=$(printf "%s" "$anime_list" | sed -nE "s@(.*\.[jpneg]*)[[:space:]]*([0-9]*)[[:space:]]*(.*)@\3\t\2\t\1@p")
+                choice=$(printf "%s" "$tmp_anime_list" | launcher "Choose anime" "1")
+                media_id=$(printf "%s" "$choice" | cut -f2)
+                title=$(printf "%s" "$choice" | sed -nE "s@(.*) [0-9?|]* episodes.*@\1@p")
+                progress=$(printf "%s" "$choice" | sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
+                episodes_total=$(printf "%s" "$choice" | sed -nE "s@.*\|([0-9?]*) episodes.*@\1@p")
+                ;;
+        esac
+    else
+        case "$image_preview" in
+            "true" | 1)
+                download_thumbnails "$anime_list" "2"
+                select_desktop_entry ""
+                [ -z "$choice" ] && exit 0
+                media_id=$(printf "%s" "$choice" | sed -nE "s@.* ([0-9]*)\.jpg@\1@p")
+                title=$(printf "%s" "$choice" | $sed -nE "s@[[:space:]]*(.*) [0-9?|]* episodes.*@\1@p")
+                progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes.*@\1@p")
+                ;;
+            *)
+                choice=$(printf "%s" "$anime_list" | launcher "Choose anime" "3")
+                media_id=$(printf "%s" "$choice" | cut -f2)
+                title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* episodes@\1@p")
+                progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes@\1@p")
+                ;;
+        esac
+    fi
 }
 
 search_anime_anilist() {
@@ -573,7 +616,7 @@ read_manga_choice() {
 main() {
     check_credentials
     [ -n "$query" ] && choice="Watch New Anime"
-    [ -z "$choice" ] && choice=$(printf "Watch Anime\nRead Manga\nBinge Watch Anime\nBinge Read Manga\nUpdate (Episodes, Status, Score)\nInfo\nWatch New Anime\nRead New Manga" | launcher "Choose an option")
+    [ -z "$choice" ] && choice=$(printf "Watch Anime\nRead Manga\nBinge Watch Anime\nBinge Read Manga\nUpdate (Episodes, Status, Score)\nInfo\nWatch New Anime\nRead New Manga" | launcher "Choose an option: ")
     case "$choice" in
         "Watch Anime") watch_anime_choice && exit 0 ;;
         "Read Manga") read_manga_choice && exit 0 ;;
@@ -586,7 +629,7 @@ main() {
             watch_anime
             ;;
         "Update (Episodes, Status, Score)")
-            update_choice=$(printf "Change Episodes Watched\nChange Chapters Read\nChange Status\nChange Score" | launcher "Choose an option")
+            update_choice=$(printf "Change Episodes Watched\nChange Chapters Read\nChange Status\nChange Score" | launcher "Choose an option: ")
             case "$update_choice" in
                 "Change Episodes Watched") update_episode_from_list "ANIME" ;;
                 "Change Chapters Read") update_episode_from_list "MANGA" ;;
