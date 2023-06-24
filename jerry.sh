@@ -46,8 +46,8 @@ send_notification() {
     fi
     [ -z "$2" ] && timeout=3000 || timeout="$2"
     if [ "$notify" = "true" ]; then
-        [ -z "$3" ] && notify-send "$1" "$4" -t "$timeout" -h string:x-dunst-stack-tag:tes
-        [ -n "$3" ] && notify-send "$1" "$4" -t "$timeout" -i "$3" string:x-dunst-stack-tag:tes
+        [ -z "$3" ] && notify-send "$1" "$4" -t "$timeout"
+        [ -n "$3" ] && notify-send "$1" "$4" -t "$timeout" -i "$3"
         # -h string:x-dunst-stack-tag:tes
     fi
 }
@@ -70,8 +70,11 @@ configuration() {
     #shellcheck disable=1090
     [ -f "$config_file" ] && . "${config_file}"
     [ -z "$player" ] && player="mpv"
-    [ -z "$provider" ] && provider="yugen"
+    [ -z "$provider" ] && provider="9anime"
+    [ -z "$video_provider" ] && video_provider="Vidstream"
+    [ -z "$base_helper_url" ] && base_helper_url="https://9anime.eltik.net"
     [ -z "$download_dir" ] && download_dir="$PWD"
+    [ -z "$manga_dir" ] && manga_dir="$data_dir/jerry-manga"
     [ -z "$history_file" ] && history_file="$data_dir/jerry_history.txt"
     [ -z "$subs_language" ] && subs_language="english"
     subs_language="$(printf "%s" "$subs_language" | cut -c2-)"
@@ -100,6 +103,7 @@ https://anilist.co/api/v2/oauth/authorize?client_id=9857&response_type=token : "
         echo "$user_id" >"$data_dir/anilist_user_id.txt"
 }
 
+#### HELPER FUNCTIONS ####
 generate_desktop() {
     cat <<EOF
 [Desktop Entry]
@@ -124,6 +128,22 @@ launcher() {
     esac
 }
 
+nine_anime_helper() {
+    curl -s "$base_helper_url/$1?query=$2&apikey=saikou" | sed -nE "s@.*\"$3\":\"([^\"]*)\".*@\1@p"
+}
+
+download_images() {
+    [ ! -d "$manga_dir/$title/chapter_$((progress + 1))" ] && mkdir -p "$manga_dir/$title/chapter_$((progress + 1))"
+    send_notification "Downloading images" "" "" "$title - Chapter: $((progress + 1)) $chapter_title"
+    printf "%s\n" "$1" | while read -r link; do
+        number=$(printf "%03d" "$(printf "%s" "$link" | sed -nE "s@[a-zA-Z]([0-9]*)-.*@\1@p")")
+        image_name=$(printf "%s.%s" "$number" "$(printf "%s" "$link" | sed -nE "s@.*\.(.*)@\1@p")")
+        download_link=$(printf "%s/data/%s/%s" "$mangadex_data_base_url" "$mangadex_hash" "$link")
+        curl -s "$download_link" -o "$manga_dir/$title/chapter_$((progress + 1))/$image_name" &
+    done
+    wait && sleep 2
+}
+
 download_thumbnails() {
     printf "%s\n" "$1" | while read -r cover_url id title; do
         curl -s -o "$images_cache_dir/  $title $id.jpg" "$cover_url" &
@@ -141,6 +161,7 @@ select_desktop_entry() {
     fi
 }
 
+#### ANILIST ANIME FUNCTIONS ####
 get_anime_from_list() {
     anime_list=$(curl -s -X POST "$anilist_base" \
         -H 'Content-Type: application/json' \
@@ -163,6 +184,53 @@ get_anime_from_list() {
     esac
 }
 
+search_anime_anilist() {
+    anime_list=$(curl -s -X POST "$anilist_base" \
+        -H 'Content-Type: application/json' \
+        -d "{\"query\":\"query(\$page:Int = 1 \$id:Int \$type:MediaType \$isAdult:Boolean = false \$search:String \$format:[MediaFormat]\$status:MediaStatus \$countryOfOrigin:CountryCode \$source:MediaSource \$season:MediaSeason \$seasonYear:Int \$year:String \$onList:Boolean \$yearLesser:FuzzyDateInt \$yearGreater:FuzzyDateInt \$episodeLesser:Int \$episodeGreater:Int \$durationLesser:Int \$durationGreater:Int \$chapterLesser:Int \$chapterGreater:Int \$volumeLesser:Int \$volumeGreater:Int \$licensedBy:[Int]\$isLicensed:Boolean \$genres:[String]\$excludedGenres:[String]\$tags:[String]\$excludedTags:[String]\$minimumTagRank:Int \$sort:[MediaSort]=[POPULARITY_DESC,SCORE_DESC]){Page(page:\$page,perPage:20){pageInfo{total perPage currentPage lastPage hasNextPage}media(id:\$id type:\$type season:\$season format_in:\$format status:\$status countryOfOrigin:\$countryOfOrigin source:\$source search:\$search onList:\$onList seasonYear:\$seasonYear startDate_like:\$year startDate_lesser:\$yearLesser startDate_greater:\$yearGreater episodes_lesser:\$episodeLesser episodes_greater:\$episodeGreater duration_lesser:\$durationLesser duration_greater:\$durationGreater chapters_lesser:\$chapterLesser chapters_greater:\$chapterGreater volumes_lesser:\$volumeLesser volumes_greater:\$volumeGreater licensedById_in:\$licensedBy isLicensed:\$isLicensed genre_in:\$genres genre_not_in:\$excludedGenres tag_in:\$tags tag_not_in:\$excludedTags minimumTagRank:\$minimumTagRank sort:\$sort isAdult:\$isAdult){id title{userPreferred}coverImage{extraLarge large color}startDate{year month day}endDate{year month day}bannerImage season seasonYear description type format status(version:2)episodes duration chapters volumes genres isAdult averageScore popularity nextAiringEpisode{airingAt timeUntilAiring episode}mediaListEntry{id status}studios(isMain:true){edges{isMain node{id name}}}}}}\",\"variables\":{\"page\":1,\"type\":\"ANIME\",\"sort\":\"SEARCH_MATCH\",\"search\":\"$1\"}}" |
+        tr "\[|\]" "\n" | sed -nE "s@.*\"id\":([0-9]*),.*\"userPreferred\":\"(.*)\"\},\"coverImage\":.*\"extraLarge\":\"([^\"]*)\".*\"episodes\":([0-9]*).*@\3\t\1\t\2 \4 episodes@p" | sed 's/\\\//\//g')
+
+    case "$image_preview" in
+        "true" | "1")
+            download_thumbnails "$anime_list" "2"
+            select_desktop_entry ""
+            [ -z "$choice" ] && exit 1
+            id=$(printf "%s" "$choice" | cut -d\  -f1)
+            title=$(printf "%s" "$choice" | $sed -nE "s@$id (.*) [0-9]* episodes@\1@p")
+            episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*) episodes@\1@p")
+            ;;
+        *)
+            echo "TODO"
+            ;;
+    esac
+
+    [ -z "$anime_title" ] && exit 0
+}
+
+#### ANILIST MANGA FUNCTIONS ####
+get_manga_from_list() {
+    manga_list=$(curl -s -X POST "$anilist_base" \
+        -H 'Content-Type: application/json' \
+        -H "Authorization: Bearer $access_token" \
+        -d "{\"query\":\"query(\$userId:Int,\$userName:String,\$type:MediaType){MediaListCollection(userId:\$userId,userName:\$userName,type:\$type){lists{name isCustomList isCompletedList:isSplitCompletedList entries{...mediaListEntry}}user{id name avatar{large}mediaListOptions{scoreFormat rowOrder animeList{sectionOrder customLists splitCompletedSectionByFormat theme}mangaList{sectionOrder customLists splitCompletedSectionByFormat theme}}}}}fragment mediaListEntry on MediaList{id mediaId status score progress progressVolumes repeat priority private hiddenFromStatusLists customLists advancedScores notes updatedAt startedAt{year month day}completedAt{year month day}media{id title{userPreferred romaji english native}coverImage{extraLarge large}type format status(version:2)episodes volumes chapters averageScore popularity isAdult countryOfOrigin genres bannerImage startDate{year month day}}}\",\"variables\":{\"userId\":$user_id,\"type\":\"MANGA\"}}" |
+        tr "\[|\]" "\n" | sed -nE "s@.*\"mediaId\":([0-9]*),\"status\":\"$1\",\"score\":(.*),\"progress\":([0-9]*),.*\"userPreferred\":\"([^\"]*)\".*\"coverImage\":\{\"extraLarge\":\"([^\"]*)\".*\"chapters\":([0-9]*).*@\5\t\1\t\4 \3|\6 chapters@p" | sed 's/\\\//\//g')
+    case "$image_preview" in
+        "true" | 1)
+            download_thumbnails "$manga_list" "2"
+            select_desktop_entry ""
+            [ -z "$choice" ] && exit 1
+            id=$(printf "%s" "$choice" | cut -d\  -f1)
+            title=$(printf "%s" "$choice" | $sed -nE "s@$id (.*) [0-9|]* chapters@\1@p")
+            progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9]* chapters@\1@p")
+            chapters_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9]*) chapters@\1@p")
+            ;;
+        *)
+            send_notification "Jerry" "" "" "TODO"
+            ;;
+    esac
+}
+
+#### ANIME SCRAPING FUNCTIONS ####
 get_episode_info() {
     case "$provider" in
         zoro)
@@ -187,6 +255,14 @@ get_episode_info() {
             ep_title=$(printf "%s" "$tmp_episode_info" | cut -f2)
             id=$(curl -s "https://yugenanime.tv/$tmp_href" | $sed -nE "s@.*id=\"main-embed\" src=\".*/e/([^/]*)/\".*@\1@p")
             episode_info=$(printf "%s\t%s" "$id" "$ep_title")
+            ;;
+        9anime)
+            nineanime_href=$(curl -s "https://raw.githubusercontent.com/MALSync/MAL-Sync-Backup/master/data/anilist/anime/$id.json" | grep -o 'https://9anime[^"]*' | head -1)
+            data_id=$(curl -s "$nineanime_href" | sed -nE "s@.*data-id=\"([0-9]*)\" data-url.*@\1@p")
+
+            ep_list_vrf=$(nine_anime_helper "vrf" "$data_id" "url")
+            episode_info=$(curl -sL "https://9anime.pl/ajax/episode/list/$data_id?vrf=$ep_list_vrf" | sed 's/<li/\n/g;s/\\//g' |
+                sed -nE "s@.*data-ids=\"([^\"]*)\".*data-jp=\"[^\"]*\">([^<]*)<.*@\1\t\2@p" | sed -n "$((progress + 1))p")
             ;;
     esac
 }
@@ -221,6 +297,10 @@ extract_from_json() {
             [ -z "$subs_links" ] && send_notification "No subtitles found"
             ;;
         yugen)
+            if [ "$json_output" = "1" ]; then
+                printf "%s\n" "$json_data"
+                exit 0
+            fi
             hls_link_1=$(printf "%s" "$json_data" | tr '{}' '\n' | $sed -nE "s@.*\"hls\": \[\"([^\"]*)\".*@\1@p")
             # hls_link_2=$(printf "%s" "$json_data" | tr '{}' '\n' | $sed -nE "s@.*hls.*, \"([^\"]*)\".\]*@\1@p")
             # gogo_link=$(printf "%s" "$json_data" | tr '{}' '\n' | $sed -nE "s@.*\"src\": \"([^\"]*)\", \"type\": \"embed.*@\1@p")
@@ -229,10 +309,26 @@ extract_from_json() {
             else
                 video_link=$hls_link_1
             fi
+            ;;
+        9anime)
             if [ "$json_output" = "1" ]; then
                 printf "%s\n" "$json_data"
                 exit 0
             fi
+            case "$video_provider" in
+                "Vidstream")
+                    video_link="$(printf "%s" "$json_data" | sed -nE "s@.*file\":\"([^\"]*\.mp4)\".*@\1@p")"
+                    case "$quality" in
+                        1080) video_link="$(printf "%s" "$video_link" | sed "s@/br/list\.m3u8@/br/H4/v\.m3u8@")" ;;
+                        720) video_link="$(printf "%s" "$video_link" | sed "s@/br/list\.m3u8@/br/H3/v\.m3u8@")" ;;
+                        480) video_link="$(printf "%s" "$video_link" | sed "s@/br/list\.m3u8@/br/H2/v\.m3u8@")" ;;
+                        360) video_link="$(printf "%s" "$video_link" | sed "s@/br/list\.m3u8@/br/H1/v\.m3u8@")" ;;
+                    esac
+                    ;;
+                "MyCloud")
+                    video_link="$(printf "%s" "$json_data" | sed -nE "s@.*file\":\"([^\"]*\.m3u8)\".*@\1@p")"
+                    ;;
+            esac
             ;;
     esac
 }
@@ -254,25 +350,85 @@ get_json() {
         yugen)
             json_data=$(curl -s 'https://yugenanime.tv/api/embed/' -X POST -H 'X-Requested-With: XMLHttpRequest' --data-raw "id=$episode_id&ac=0")
             ;;
+        9anime)
+            server_list_vrf=$(nine_anime_helper "vrf" "$episode_id" "url")
+
+            # change head to tail to get dub
+            provider_id=$(curl -sL "https://9anime.pl/ajax/server/list/$episode_id?vrf=$server_list_vrf" | sed "s/</\n/g;s/\\\//g" | sed -nE "s@.*data-link-id=\"([^\"]*)\">$video_provider.*@\1@p" | head -1)
+            provider_vrf=$(nine_anime_helper "vrf" "$provider_id" "url")
+
+            encrypted_provider_url=$(curl -sL "https://9anime.pl/ajax/server/$provider_id?vrf=$provider_vrf" | sed "s/\\\//g" | sed -nE "s@.*\{\"url\":\"([^\"]*)\".*@\1@p")
+            provider_embed=$(nine_anime_helper "decrypt" "$encrypted_provider_url" "url")
+            provider_query=$(printf "%s" "$provider_embed" | sed -nE "s@.*/e/(.*)@\1@p")
+
+            case "$video_provider" in
+                "Vidstream")
+                    raw_url=$(nine_anime_helper "rawvizcloud" "$provider_query" "rawURL")
+                    json_data=$(curl -s "$raw_url" -e "$provider_embed" | sed "s/\\\//g")
+                    ;;
+                "MyCloud")
+                    raw_url=$(nine_anime_helper "rawmcloud" "$provider_query" "rawURL")
+                    json_data=$(curl -s "$raw_url" -e "$provider_embed" | sed "s/\\\//g")
+                    ;;
+                    # "Mp4upload")
+                    #     video_link=$(curl -s "$provider_embed" | sed -nE "s@.*src: \"([^\"]*)\".*@\1@p")
+                    #     ;;
+            esac
+            ;;
     esac
 
     [ -n "$json_data" ] && extract_from_json
 }
 
+#### MANGA SCRAPING FUNCTIONS ####
+get_chapter_info() {
+    manga_provider="mangadex"
+    case "$manga_provider" in
+        mangadex)
+            mangadex_id=$(curl -s "https://raw.githubusercontent.com/MALSync/MAL-Sync-Backup/master/data/anilist/manga/$id.json" | tr -d "\n" | sed -nE "s@.*\"Mangadex\":[[:space:]{]*\"([^\"]*)\".*@\1@p")
+            chapter_info=$(curl -s "https://api.mangadex.org/manga/$mangadex_id/feed?limit=164&translatedLanguage[]=en" | sed "s/}]},/\n/g" |
+                sed -nE "s@.*\"id\":\"([^\"]*)\".*\"chapter\":\"$((progress + 1))\",\"title\":\"([^\"]*)\".*@\1\t\2@p")
+            ;;
+    esac
+}
+
+get_manga_json() {
+    case "$manga_provider" in
+        mangadex)
+            json_data=$(curl -s "https://api.mangadex.org/at-home/server/$chapter_id" | sed "s/\\\//g")
+            if [ "$json_output" = "1" ]; then
+                printf "%s\n" "$json_data"
+                exit 0
+            fi
+            mangadex_data_base_url=$(printf "%s" "$json_data" | sed -nE "s@.*\"baseUrl\":\"([^\"]*)\".*@\1@p")
+            mangadex_hash=$(printf "%s" "$json_data" | sed -nE "s@.*\"hash\":\"([^\"]*)\".*@\1@p")
+            image_links=$(printf "%s" "$json_data" | sed -nE "s@.*data\":\[(.*)\],.*@\1@p" | sed "s/,/\n/g;s/\"//g")
+            download_images "$image_links"
+            ;;
+    esac
+}
+
+#### MEDIA FUNCTIONS ####
 play_video() {
     case "$provider" in
         zoro)
-            displayed_title="$title - Ep $((progress + 1)) $episode_title"
+            displayed_episode_title="Ep $((progress + 1)) $episode_title"
             ;;
         yugen)
-            displayed_title="$title - Ep $episode_title"
+            displayed_episode_title="Ep $episode_title"
+            ;;
+        9anime)
+            displayed_episode_title="Ep $((progress + 1)) $episode_title"
             ;;
     esac
+    displayed_title="$title - $displayed_episode_title"
     case $player in
         mpv)
             if [ -n "$subs_links" ]; then
+                send_notification "$title" "4000" "$images_cache_dir/  $title $progress|$episodes_total episodes $id.jpg" "$displayed_episode_title"
                 mpv "$video_link" "$subs_arg" "$subs_links" --force-media-title="$displayed_title" 2>&1 | tee $tmp_position
             else
+                send_notification "$title" "4000" "$images_cache_dir/  $title $progress|$episodes_total episodes $id.jpg" "$displayed_episode_title"
                 mpv "$video_link" --force-media-title="$displayed_title" 2>&1 | tee $tmp_position
             fi
             stopped_at=$(cat $tmp_position | $sed -nE "s@.*AV: ([0-9:]*) / ([0-9:]*) \(([0-9]*)%\).*@\1@p" | tail -1)
@@ -293,6 +449,10 @@ play_video() {
     esac
 }
 
+read_chapter() {
+    swayimg "$manga_dir/$title/chapter_$((progress + 1))"/*
+}
+
 watch_anime() {
 
     get_episode_info
@@ -310,9 +470,25 @@ watch_anime() {
 
 }
 
+read_manga() {
+
+    get_chapter_info
+    if [ -z "$chapter_info" ]; then
+        send_notification "Error" "" "" "$title not found"
+        exit 1
+    fi
+    chapter_id=$(printf "%s" "$chapter_info" | cut -f1)
+    chapter_title=$(printf "%s" "$chapter_info" | cut -f2)
+
+    get_manga_json
+    read_chapter
+
+}
+
 main() {
     check_credentials
-    # [ -z "$choice" ] && choice=$(printf "Watch\nUpdate\nInfo\nWatch New" | launcher "Choose an option")
+    # [ -z "$choice" ] && choice=$(printf "Watch\nRead\nUpdate\nInfo\nWatch New" | launcher "Choose an option")
+    # query="naruto"
     choice="Watch"
     case "$choice" in
         "Watch")
@@ -321,8 +497,21 @@ main() {
                 send_notification "Jerry" "" "" "Error, no anime found"
                 exit 1
             fi
-            send_notification "Loading" "" "" "$title"
+            # send_notification "Loading" "" "" "$title"
+            send_notification "Loading" "3000" "$images_cache_dir/  $title $progress|$episodes_total episodes $id.jpg" "$title"
             watch_anime
+            ;;
+        "Watch New")
+            search_anime_anilist "$query"
+            ;;
+        "Read")
+            get_manga_from_list "CURRENT"
+            if [ -z "$id" ] || [ -z "$title" ] || [ -z "$progress" ] || [ -z "$chapters_total" ]; then
+                send_notification "Jerry" "" "" "Error, no manga found"
+                exit 1
+            fi
+            send_notification "Loading" "" "" "$title"
+            read_manga
             ;;
     esac
 }
