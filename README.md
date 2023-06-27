@@ -94,7 +94,7 @@ jerry -e
 - curl
 - fzf
 - mpv (Video Player)
-- external menus (rofi, tofi, dmenu, etc.) (optional)
+- rofi (optional)
 - ueberuzgpp (image preview in fzf) (optional)
 - jq (for displaying anime/manga info) (optional)
 
