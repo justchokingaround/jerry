@@ -52,6 +52,54 @@ if [ "$use_external_menu" = "1" ]; then
     dep_ch "rofi" || true
 fi
 
+usage() {
+    printf "
+  Usage: %s [options] [query]
+  If a query is provided, it will be used to search for an anime, and will default to the 'Watch New Anime' option.
+
+  Options:
+    -c, --continue
+      Continue watching from currently watching list (using the user's anilist account)
+    --dub
+      Allows user to watch anime in dub
+    -e, --edit
+      Edit config file using an editor defined with jerry_editor in the config (\$EDITOR by default)
+      If a config file does not exist, creates one with a default configuration
+    -h, --help
+      Show this help message and exit
+    -i, --image-preview
+      Allows image preveiw in fzf and rofi (Note: for image preview using fzf, ueberzugpp must be installed)
+    -j, --json
+      Outputs the json containing video links, subtitle links, referrers etc. to stdout
+    -l, --language
+      Specify the subtitle language
+    -n, --number
+      Specify the episode number for an anime
+    -p, --provider
+      Specify the provider to watch from (default: 9anime) (currently supported: 9anime, zoro and yugen)
+    --rofi, --dmenu, --external-menu
+      Use an external menu (instead of the default fzf) to select an anime (default one is rofi, but this can be specified in the config file)
+    -q, --quality
+      Specify the video quality
+    -s, --syncplay
+      Watch anime together with friends, using Syncplay (only tested using mpv)
+    -u, --update
+      Update the script
+    -v, --version
+      Show the script version
+
+    Note: 
+      All arguments can be specified in the config file as well.
+      If an argument is specified in both the config file and the command line, the command line argument will be used.
+
+    Some example usages:
+     ${0##*/} -q 720 banana fish
+     ${0##*/} --rofi -l russian cyberpunk edgerunners -i -n 2
+     ${0##*/} -l spanish cyberpunk edgerunners --number 2 --json
+
+" "${0##*/}"
+}
+
 configuration() {
     [ -n "$XDG_CONFIG_HOME" ] && config_dir="$XDG_CONFIG_HOME/jerry" || config_dir="$HOME/.config/jerry"
     [ -n "$XDG_DATA_HOME" ] && data_dir="$XDG_DATA_HOME/jerry" || data_dir="$HOME/.local/share/jerry"
@@ -1006,6 +1054,8 @@ main() {
 
 configuration
 query=""
+# TODO: implement discord presence
+# TODO: add an argument for video_providers
 while [ $# -gt 0 ]; do
     case "$1" in
         --)
