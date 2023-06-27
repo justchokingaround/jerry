@@ -97,25 +97,16 @@ Jerry can be customized through the configuration file `$HOME/.config/jerry/jerr
 
 The configuration file has the following format, (example of the default configuration):
 ```sh
-discord_presence=false
-provider=zoro
-subs_language=English
-use_external_menu=0
-video_quality=best
-history_file=$HOME/.cache/anime_history
+# TODO: add default config
 ```
 
 Here is an example of a more advanced configuration:
 ```sh
 use_external_menu=1
-discord_presence="true"
-provider="gogoanime"
+image_preview=1
+provider="zoro"
 opt_fzf_args="--cycle --reverse"
 subs_language="russian"
-
-external_menu() {
- tofi --require-match false --fuzzy-match true --prompt-text "$1"
-}
 ```
 
 ## Dependencies
@@ -126,7 +117,7 @@ external_menu() {
 - fzf
 - mpv (Video Player)
 - external menus (rofi, tofi, dmenu, etc.) (optional)
+- jq (for displaying anime/manga info) (optional)
 
 ## Credits
 - Anilist API: https://anilist.co/api/
-- Consumet API: https://docs.consumet.org/
