@@ -1,8 +1,8 @@
-![jerry](https://user-images.githubusercontent.com/44473782/223358601-a7eaf402-e37d-41be-9fe1-c55e76706c5d.png)
+![image](https://github.com/justchokingaround/jerry/assets/44473782/9f49b6e1-a07a-4610-b893-6a5ab816c40b)
 
 
 # Jerry
-Jerry is a command line tool for streaming anime from various providers. It can search for and play anime, continue watching from the currently watching list, and has various options for customization. The core idea of the script is that it allows users to watch anime in sync with their anilist account, automatically updating and tracking all progress (down to minutes of an episode watched).
+Jerry is a command line tool for streaming anime from various providers. It can search for and play anime, continue watching from the currently watching list, and has various options for customization. The core idea of the script is that it allows users to watch anime in sync with their anilist account, automatically updating and tracking all progress (down to seconds of an episode watched).
 
 ---
 ## Table of Contents
@@ -14,16 +14,14 @@ Jerry is a command line tool for streaming anime from various providers. It can 
 - [Credits](#credits)
 
 ## Features
-- Search for and stream anime from various providers (currently supported: zoro, gogoanime) (default: zoro)
+- Search for and stream anime from various providers (currently supported: 9anime, zoro and yugen) (default: 9anime)
   (some providers, such as zoro and have support for external subtitles which allows more freedom)
-- Continue watching anime from different lists from Anilist (current, completed, on hold, dropped, plan to watch)
-- Customize subtitle language, video quality, and provider (using arguments or config file)
+- Sync watch progress on Anilist on episode completion, and locally (down to the second watched, just like YouTube and Netflix does it)
+- Customize subtitle language, video quality, provider and many other things (using arguments or config file)
 - Edit the configuration file using the command line
 - Update the script from GitHub
-- Incognito mode: watch anime without pushing progress to Anilist or saving progress locally (no Anilist account required for this)
-- Discord Rich Presence: display currently watched anime in Discord (requires the installation of the helper python script: jerrydiscordpresence.py)
-- External menu support: use an external menu (e.g. rofi, tofi, dmenu...) to select anime
-- Output episode links in JSON format (no Anilist account required for this)
+- External menu support: ability to use rofi, so that opening a terminal window isn't even required to run the script !! (this can be used to setting the script to run on a keybind)
+- Output episode links in JSON format
 
 
 ## Installation
@@ -32,21 +30,11 @@ Jerry is a command line tool for streaming anime from various providers. It can 
 sudo curl -sL github.com/justchokingaround/jerry/raw/main/jerry.sh -o /usr/local/bin/jerry &&
 sudo chmod +x /usr/local/bin/jerry
 ```
-#### Optional: Discord Rich Presence (requires python3 and the python packages: pypresence and httpx)
-```sh
-sudo curl -sL github.com/justchokingaround/jerry/raw/main/jerrydiscordpresence.py -o /usr/local/bin/jerrydiscordpresence.py &&
-sudo chmod +x /usr/local/bin/jerrydiscordpresence.py
-```
 ---
 ### Mac
 ```sh
 curl -sL github.com/justchokingaround/jerry/raw/main/jerry.sh -o "$(brew --prefix)"/bin/jerry &&
 chmod +x "$(brew --prefix)"/bin/jerry
-```
-#### Optional: Discord Rich Presence (requires python3 and the python packages: pypresence and httpx)
-```sh
-curl -sL github.com/justchokingaround/jerry/raw/main/jerrydiscordpresence.py -o "$(brew --prefix)"/bin/jerrydiscordpresence.py
-chmod +x "$(brew --prefix)"/bin/jerrydiscordpresence.py
 ```
 
 ## Usage
@@ -93,29 +81,10 @@ Options:
    jerry -l spanish cyberpunk edgerunners --number 2 --json
 ```
 ## Configuration
-Jerry can be customized through the configuration file `$HOME/.config/jerry/jerry.conf` or by using command line arguments.
 
-The configuration file has the following format, (example of the default configuration):
+You can use the following command to edit your jerry configuration (in case a configuration file does not exist, a default one will be created, containing all the default values) :
 ```sh
-discord_presence=false
-provider=zoro
-subs_language=English
-use_external_menu=0
-video_quality=best
-history_file=$HOME/.cache/anime_history
-```
-
-Here is an example of a more advanced configuration:
-```sh
-use_external_menu=1
-discord_presence="true"
-provider="gogoanime"
-opt_fzf_args="--cycle --reverse"
-subs_language="russian"
-
-external_menu() {
- tofi --require-match false --fuzzy-match true --prompt-text "$1"
-}
+jerry -e
 ```
 
 ## Dependencies
@@ -126,7 +95,8 @@ external_menu() {
 - fzf
 - mpv (Video Player)
 - external menus (rofi, tofi, dmenu, etc.) (optional)
+- ueberuzgpp (image preview in fzf) (optional)
+- jq (for displaying anime/manga info) (optional)
 
 ## Credits
 - Anilist API: https://anilist.co/api/
-- Consumet API: https://docs.consumet.org/
