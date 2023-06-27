@@ -95,19 +95,7 @@ Options:
 ## Configuration
 Jerry can be customized through the configuration file `$HOME/.config/jerry/jerry.conf` or by using command line arguments.
 
-The configuration file has the following format, (example of the default configuration):
-```sh
-# TODO: add default config
-```
-
-Here is an example of a more advanced configuration:
-```sh
-use_external_menu=1
-image_preview=1
-provider="zoro"
-opt_fzf_args="--cycle --reverse"
-subs_language="russian"
-```
+Please checkout the `examples` directory in this repository to find a sample config, as well as a custom config.
 
 ## Dependencies
 - grep

@@ -2,14 +2,11 @@
 
 JERRY_VERSION=1.9.0
 
-# TODO: Add spaces for all launchers
-
 anilist_base="https://graphql.anilist.co"
 config_file="$HOME/.config/jerry/jerry.conf"
 jerry_editor=${VISUAL:-${EDITOR}}
 tmp_dir="/tmp/jerry"
 tmp_position="/tmp/jerry_position"
-# image_config_path="$HOME/.config/rofi/styles/launcher.rasi"
 
 cleanup() {
     # tput clear
@@ -58,7 +55,6 @@ fi
 configuration() {
     [ -n "$XDG_CONFIG_HOME" ] && config_dir="$XDG_CONFIG_HOME/jerry" || config_dir="$HOME/.config/jerry"
     [ -n "$XDG_DATA_HOME" ] && data_dir="$XDG_DATA_HOME/jerry" || data_dir="$HOME/.local/share/jerry"
-    [ ! -d "$config_dir" ] && mkdir -p "$config_dir"
     [ ! -d "$data_dir" ] && mkdir -p "$data_dir"
     #shellcheck disable=1090
     [ -f "$config_file" ] && . "${config_file}"
@@ -81,6 +77,7 @@ configuration() {
     [ -z "$ueberzug_max_width" ] && ueberzug_max_width=$(($(tput lines) / 2))
     [ -z "$ueberzug_max_height" ] && ueberzug_max_height=$(($(tput lines) / 2))
     [ -z "$json_output" ] && json_output=0
+    [ -z "$dub" ] && dub="false"
 }
 
 check_credentials() {
@@ -106,9 +103,41 @@ edit_configuration() {
         . "${config_file}"
         [ -z "$jerry_editor" ] && jerry_editor="vim"
         "$jerry_editor" "$config_file"
+    else
+        printf "No configuration file found. Would you like to generate a default one? [y/N] " && read -r generate
+        case "$generate" in
+            "Yes" | "yes" | "y" | "Y")
+                [ ! -d "$config_dir" ] && mkdir -p "$config_dir"
+                send_notification "Jerry" "" "" "Getting the latest example config from github..."
+                curl -s "https://raw.githubusercontent.com/justchokingaround/jerry/main/examples/jerry.conf" -o "$config_dir/jerry.conf"
+                send_notification "Jerry" "" "" "New config generated!"
+                . "${config_file}"
+                [ -z "$jerry_editor" ] && jerry_editor="vim"
+                "$jerry_editor" "$config_file"
+                ;;
+            *) exit 0 ;;
+        esac
     fi
     exit 0
 
+}
+
+update_script() {
+    which_jerry="$(command -v jerry)"
+    [ -z "$which_jerry" ] && send_notification "Can't find jerry in PATH"
+    [ -z "$which_jerry" ] && exit 1
+    update=$(curl -s "https://raw.githubusercontent.com/justchokingaround/jerry/main/jerry.sh" || exit 1)
+    update="$(printf '%s\n' "$update" | diff -u "$which_jerry" -)"
+    if [ -z "$update" ]; then
+        send_notification "Script is up to date :)"
+    else
+        if printf '%s\n' "$update" | patch "$which_jerry" -; then
+            send_notification "Script has been updated!"
+        else
+            send_notification "Can't update for some reason!"
+        fi
+    fi
+    exit 0
 }
 
 get_input() {
@@ -215,7 +244,7 @@ get_anime_from_list() {
                 [ -z "$choice" ] && exit 1
                 media_id=$(printf "%s" "$choice" | cut -d\  -f1)
                 title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?|]* episodes.*@\1@p")
-                progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
+                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes.*@\1@p")
                 score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\]@\1@p")
                 ;;
@@ -225,7 +254,7 @@ get_anime_from_list() {
                 [ -z "$choice" ] && exit 1
                 media_id=$(printf "%s" "$choice" | cut -f2)
                 title=$(printf "%s" "$choice" | $sed -nE "s@(.*) [0-9?|]* episodes.*@\1@p")
-                progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
+                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes.*@\1@p")
                 score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\]@\1@p")
                 ;;
@@ -238,7 +267,7 @@ get_anime_from_list() {
                 [ -z "$choice" ] && exit 0
                 media_id=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\.jpg@\1@p")
                 title=$(printf "%s" "$choice" | $sed -nE "s@[[:space:]]*(.*) [0-9?|]* episodes.*@\1@p")
-                progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
+                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes.*@\1@p")
                 score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\]@\1@p")
                 ;;
@@ -247,7 +276,7 @@ get_anime_from_list() {
                 [ -z "$choice" ] && exit 1
                 media_id=$(printf "%s" "$choice" | cut -f2)
                 title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* episodes.*@\1@p")
-                progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
+                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes.*@\1@p")
                 score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\]@\1@p")
                 ;;
@@ -276,7 +305,7 @@ search_anime_anilist() {
                 choice=$(printf "%s" "$tmp_anime_list" | launcher "Choose anime: " "1")
                 media_id=$(printf "%s" "$choice" | cut -f2)
                 title=$(printf "%s" "$choice" | $sed -nE "s@(.*) [0-9?|]* episodes.*@\1@p")
-                progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
+                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes.*@\1@p")
                 ;;
         esac
@@ -294,7 +323,7 @@ search_anime_anilist() {
                 choice=$(printf "%s" "$anime_list" | launcher "Choose anime: " "3")
                 media_id=$(printf "%s" "$choice" | cut -f2)
                 title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* episodes@\1@p")
-                progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes@\1@p")
+                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes@\1@p")
                 ;;
         esac
@@ -359,7 +388,7 @@ get_manga_from_list() {
                 [ -z "$choice" ] && exit 1
                 media_id=$(printf "%s" "$choice" | cut -d\  -f1)
                 title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?|]* chapters.*@\1@p")
-                progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* chapters.*@\1@p")
+                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* chapters.*@\1@p")
                 chapters_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) chapters.*@\1@p")
                 score=$(printf "%s" "$choice" | $sed -nE "s@.*\|[0-9?]* chapters[[:space:]]*\[([0-9]*)\][[:space:]]*.*@\1@p")
                 ;;
@@ -369,7 +398,7 @@ get_manga_from_list() {
                 [ -z "$choice" ] && exit 1
                 media_id=$(printf "%s" "$choice" | cut -f2)
                 title=$(printf "%s" "$choice" | $sed -nE "s@(.*) [0-9?|]* chapters.*@\1@p")
-                progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* chapters.*@\1@p")
+                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* chapters.*@\1@p")
                 chapters_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) chapters.*@\1@p")
                 score=$(printf "%s" "$choice" | $sed -nE "s@.*\|[0-9?]* chapters[[:space:]]*\[([0-9]*)\][[:space:]]*.*@\1@p")
                 ;;
@@ -382,7 +411,7 @@ get_manga_from_list() {
                 [ -z "$choice" ] && exit 0
                 media_id=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\.jpg@\1@p")
                 title=$(printf "%s" "$choice" | $sed -nE "s@[[:space:]]*(.*) [0-9?|]* chapters.*@\1@p")
-                progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* chapters.*@\1@p")
+                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* chapters.*@\1@p")
                 chapters_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) chapters.*@\1@p")
                 score=$(printf "%s" "$choice" | $sed -nE "s@.*\|[0-9?]* chapters[[:space:]]*\[([0-9]*)\][[:space:]]*.*@\1@p")
                 ;;
@@ -391,7 +420,7 @@ get_manga_from_list() {
                 [ -z "$choice" ] && exit 1
                 media_id=$(printf "%s" "$choice" | cut -f2)
                 title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* chapters.*@\1@p")
-                progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* chapters.*@\1@p")
+                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* chapters.*@\1@p")
                 chapters_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) chapters.*@\1@p")
                 score=$(printf "%s" "$choice" | $sed -nE "s@.*\|[0-9?]* chapters[[:space:]]*\[([0-9]*)\][[:space:]]*.*@\1@p")
                 ;;
@@ -420,7 +449,7 @@ search_manga_anilist() {
                 choice=$(printf "%s" "$tmp_manga_list" | launcher "Choose manga: " "1")
                 media_id=$(printf "%s" "$choice" | cut -f2)
                 title=$(printf "%s" "$choice" | $sed -nE "s@(.*) [0-9?|]* chapters.*@\1@p")
-                progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* chapters.*@\1@p")
+                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* chapters.*@\1@p")
                 chapters_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) chapters.*@\1@p")
                 ;;
         esac
@@ -438,7 +467,7 @@ search_manga_anilist() {
                 choice=$(printf "%s" "$manga_list" | launcher "Choose manga: " "3")
                 media_id=$(printf "%s" "$choice" | cut -f2)
                 title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* chapters@\1@p")
-                progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* chapters@\1@p")
+                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* chapters@\1@p")
                 chapters_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) chapters@\1@p")
                 ;;
         esac
@@ -501,7 +530,7 @@ update_status() {
 }
 
 update_score() {
-    status_choice=$(printf "CURRENT\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Filter by status")
+    status_choice=$(printf "CURRENT\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Filter by status: ")
     case "$1" in
         "ANIME") get_anime_from_list "$status_choice" ;;
         "MANGA") get_manga_from_list "$status_choice" ;;
@@ -512,7 +541,7 @@ update_score() {
         printf "Enter new score: "
         read -r new_score
     else
-        new_score=$(printf "" | launcher "Enter new score")
+        new_score=$(printf "" | launcher "Enter new score: ")
     fi
     [ -z "$new_score" ] && send_notification "No score given" && exit 1
     send_notification "Updating score for $title..."
@@ -579,8 +608,11 @@ get_episode_info() {
             tmp_episode_info=$(curl -s "https://yugenanime.tv/$href/watch/" | $sed -nE "s@.*href=\"/([^\"]*)\" title=\"([^\"]*)\".*@\1\t\2@p" | $sed -n "$((progress + 1))p")
             tmp_href=$(printf "%s" "$tmp_episode_info" | cut -f1)
             ep_title=$(printf "%s" "$tmp_episode_info" | cut -f2)
-            media_id=$(curl -s "https://yugenanime.tv/$tmp_href" | $sed -nE "s@.*id=\"main-embed\" src=\".*/e/([^/]*)/\".*@\1@p")
-            episode_info=$(printf "%s\t%s" "$media_id" "$ep_title")
+            if [ "$dub" = true ]; then
+                tmp_href=$(printf "%s" "$tmp_href" | $sed -E 's|(/[^/]+)/([0-9]+)/$|\1-dub/\2/|')
+            fi
+            yugen_id=$(curl -s "https://yugenanime.tv/$tmp_href" | $sed -nE "s@.*id=\"main-embed\" src=\".*/e/([^/]*)/\".*@\1@p")
+            episode_info=$(printf "%s\t%s" "$yugen_id" "$ep_title")
             ;;
         9anime)
             nineanime_href=$(curl -s "https://raw.githubusercontent.com/MALSync/MAL-Sync-Backup/master/data/anilist/anime/$media_id.json" | grep -o 'https://9anime[^"]*' | head -1)
@@ -616,11 +648,12 @@ extract_from_json() {
                 exit 0
             fi
             subs_links=$(printf "%s" "$json_data" | tr "{}" "\n" | $sed -nE "s@\"file\":\"([^\"]*)\",\"label\":\"(.$subs_language)[,\"\ ].*@\1@p")
-            subs_arg="--sub-file"
             num_subs=$(printf "%s" "$subs_links" | wc -l)
             if [ "$num_subs" -gt 0 ]; then
                 subs_links=$(printf "%s" "$subs_links" | $sed -e "s/:/\\$path_thing:/g" -e "H;1h;\$!d;x;y/\n/$separator/" -e "s/$separator\$//")
                 subs_arg="--sub-files=$subs_links"
+            else
+                subs_arg="--sub-file=$subs_links"
             fi
             [ -z "$subs_links" ] && send_notification "No subtitles found"
             ;;
@@ -665,7 +698,12 @@ extract_from_json() {
 get_json() {
     case "$provider" in
         zoro)
-            source_id=$(curl -s "https://zoro.to/ajax/v2/episode/servers?episodeId=$episode_id" | tr "<|>" "\n" | $sed -nE 's_.*data-id=\\"([^"]*)\\".*_\1_p' | head -1)
+
+            if [ "$dub" = true ]; then
+                source_id=$(curl -s "https://zoro.to/ajax/v2/episode/servers?episodeId=$episode_id" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"dub\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
+            else
+                source_id=$(curl -s "https://zoro.to/ajax/v2/episode/servers?episodeId=$episode_id" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"sub\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
+            fi
             embed_link=$(curl -s "https://zoro.to/ajax/v2/episode/sources?id=$source_id" | $sed -nE "s_.*\"link\":\"([^\"]*)\".*_\1_p")
 
             # get the juicy links
@@ -682,9 +720,13 @@ get_json() {
         9anime)
             server_list_vrf=$(nine_anime_helper "vrf" "$episode_id" "url")
 
-            # change head to tail to get dub
-            provider_id=$(curl -sL "https://9anime.pl/ajax/server/list/$episode_id?vrf=$server_list_vrf" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-link-id=\"([^\"]*)\">$video_provider.*@\1@p" | head -1)
-            provider_vrf=$(nine_anime_helper "vrf" "$provider_id" "url")
+            if [ "$dub" = true ]; then
+                provider_id=$(curl -sL "https://9anime.pl/ajax/server/list/$episode_id?vrf=$server_list_vrf" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-link-id=\"([^\"]*)\">$video_provider.*@\1@p" | tail -1)
+                provider_vrf=$(nine_anime_helper "vrf" "$provider_id" "url")
+            else
+                provider_id=$(curl -sL "https://9anime.pl/ajax/server/list/$episode_id?vrf=$server_list_vrf" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-link-id=\"([^\"]*)\">$video_provider.*@\1@p" | head -1)
+                provider_vrf=$(nine_anime_helper "vrf" "$provider_id" "url")
+            fi
 
             encrypted_provider_url=$(curl -sL "https://9anime.pl/ajax/server/$provider_id?vrf=$provider_vrf" | $sed "s/\\\//g" | $sed -nE "s@.*\{\"url\":\"([^\"]*)\".*@\1@p")
             provider_embed=$(nine_anime_helper "decrypt" "$encrypted_provider_url" "url")
@@ -785,8 +827,11 @@ play_video() {
             else
                 send_notification "Current progress" "" "" "$progress/$episodes_total episodes watched"
                 send_notification "Your progress has not been updated"
-                printf "%s\t%s\t%s" "$media_id" "$((progress + 1))" "$stopped_at" >>"$history_file.tmp"
-                mv "$history_file.tmp" "$history_file"
+                if ! grep -q "^$media_id" "$history_file" 2>&1 >/dev/null; then
+                    printf "%s\t%s\t%s\n" "$media_id" "$((progress + 1))" "$stopped_at" >>"$history_file"
+                else
+                    $sed -i "/^$media_id/s/\t[0-9:]*$/\t$stopped_at/" "$history_file"
+                fi
                 send_notification "Stopped at: $stopped_at" "5000"
             fi
             ;;
@@ -884,7 +929,6 @@ read_manga_choice() {
 main() {
     check_credentials
     [ -n "$query" ] && mode_choice="Watch New Anime"
-    # TODO: update score
     [ -z "$mode_choice" ] && mode_choice=$(printf "Watch Anime\nRead Manga\nBinge Watch Anime\nBinge Read Manga\nUpdate (Episodes, Status, Score)\nInfo\nWatch New Anime\nRead New Manga" | launcher "Choose an option: ")
     case "$mode_choice" in
         "Watch Anime") watch_anime_choice && exit 0 ;;
@@ -969,6 +1013,8 @@ while [ $# -gt 0 ]; do
             query="$*"
             break
             ;;
+        -c | --continue) mode_choice="Watch Anime" && shift ;;
+        --dub) dub="true" && shift ;;
         -e | --edit) edit_configuration ;;
         -h | --help)
             usage && exit 0
@@ -996,6 +1042,7 @@ while [ $# -gt 0 ]; do
                 fi
             fi
             ;;
+        -n | --number) progress=$(($2 - 1)) && shift 2 ;;
         --rofi | --dmenu | --external-menu)
             use_external_menu="1"
             shift
