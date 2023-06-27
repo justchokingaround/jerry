@@ -1119,7 +1119,8 @@ while [ $# -gt 0 ]; do
             update_script
             ;;
         -v | -V | --version)
-            send_notification "Jerry Version: $JERRY_VERSION" && exit 0
+            send_notification "Jerry Version: $JERRY_VERSION"
+            exit 0
             ;;
         *)
             if [ "${1#-}" != "$1" ]; then
