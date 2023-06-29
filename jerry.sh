@@ -46,7 +46,7 @@ dep_ch() {
         command -v "$dep" >/dev/null || send_notification "Program \"$dep\" not found. Please install it."
     done
 }
-dep_ch "grep" "$sed" "awk" "curl" "fzf" "mpv" || true
+dep_ch "grep" "$sed" "curl" "fzf" "mpv" || true
 
 if [ "$use_external_menu" = "1" ]; then
     dep_ch "rofi" || true
@@ -857,10 +857,10 @@ play_video() {
             fi
             if [ -n "$subs_links" ]; then
                 send_notification "$title" "4000" "$images_cache_dir/  $title $progress|$episodes_total episodes $media_id.jpg" "$displayed_episode_title"
-                mpv "$video_link" "$opts" "$subs_arg" "$subs_links" --force-media-title="$displayed_title" 2>&1 | tee $tmp_position
+                mpv "$video_link" "$opts" "$subs_arg" "$subs_links" --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
             else
                 send_notification "$title" "4000" "$images_cache_dir/  $title $progress|$episodes_total episodes $media_id.jpg" "$displayed_episode_title"
-                mpv "$video_link" "$opts" --force-media-title="$displayed_title" 2>&1 | tee $tmp_position
+                mpv "$video_link" "$opts" --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
             fi
             stopped_at=$($sed -nE "s@.*AV: ([0-9:]*) / ([0-9:]*) \(([0-9]*)%\).*@\1@p" "$tmp_position" | tail -1)
             percentage_progress=$($sed -nE "s@.*AV: ([0-9:]*) / ([0-9:]*) \(([0-9]*)%\).*@\3@p" "$tmp_position" | tail -1)

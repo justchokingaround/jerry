@@ -90,7 +90,6 @@ jerry -e
 ## Dependencies
 - grep
 - sed
-- awk
 - curl
 - fzf
 - mpv (Video Player)
