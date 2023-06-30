@@ -1,6 +1,6 @@
 #!/bin/sh
 
-JERRY_VERSION=1.9.1
+JERRY_VERSION=1.9.2
 
 anilist_base="https://graphql.anilist.co"
 config_file="$HOME/.config/jerry/jerry.conf"
