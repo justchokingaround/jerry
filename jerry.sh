@@ -37,8 +37,7 @@ send_notification() {
     [ -z "$2" ] && timeout=3000 || timeout="$2"
     if [ "$notify" = "true" ]; then
         [ -z "$3" ] && notify-send "$1" "$4" -t "$timeout"
-        [ -n "$3" ] && notify-send "$1" "$4" -t "$timeout" -i "$3"
-        # -h string:x-dunst-stack-tag:tes
+        [ -n "$3" ] && notify-send "$1" "$4" -t "$timeout" -i "$3" -h string:x-dunst-stack-tag:tes
     fi
 }
 dep_ch() {
@@ -75,8 +74,6 @@ usage() {
       Specify the subtitle language
     -n, --number
       Specify the episode number for an anime
-    -p, --provider
-      Specify the provider to watch from (default: 9anime) (currently supported: 9anime, zoro and yugen)
     --rofi, --dmenu, --external-menu
       Use an external menu (instead of the default fzf) to select an anime (default one is rofi, but this can be specified in the config file)
     -q, --quality
@@ -88,7 +85,7 @@ usage() {
     -v, --version
       Show the script version
     -w, --website
-      Choose which website to get video links from
+      Choose which website to get video links from (default: 9anime) (currently supported: 9anime, zoro and yugen)
 
     Note: 
       All arguments can be specified in the config file as well.
@@ -246,7 +243,7 @@ nine_anime_helper() {
 
 download_images() {
     [ ! -d "$manga_dir/$title/chapter_$((progress + 1))" ] && mkdir -p "$manga_dir/$title/chapter_$((progress + 1))"
-    send_notification "Downloading images" "" "" "$title - Chapter: $((progress + 1)) $chapter_title"
+    send_notification "Downloading images" "" "$images_cache_dir/  $title $progress|$chapters_total chapters [$score] $media_id.jpg" "$title - Chapter: $((progress + 1)) $chapter_title"
     printf "%s\n" "$1" | while read -r link; do
         number=$(printf "%03d" "$(printf "%s" "$link" | $sed -nE "s@[a-zA-Z]?([0-9]*)-.*@\1@p")")
         image_name=$(printf "%s.%s" "$number" "$(printf "%s" "$link" | $sed -nE "s@.*\.(.*)@\1@p")")
@@ -257,7 +254,7 @@ download_images() {
 }
 
 convert_to_pdf() {
-    send_notification "Converting $title - Chapter: $((progress + 1)) $chapter_title to PDF" "2000"
+    send_notification "Converting $title - Chapter: $((progress + 1)) $chapter_title to PDF" "2000" "$images_cache_dir/  $title $media_id.jpg"
     convert "$manga_dir/$title/chapter_$((progress + 1))"/* "$manga_dir/$title/chapter_$((progress + 1))/$title - Chapter $((progress + 1)).pdf" && wait
 }
 
@@ -422,7 +419,7 @@ search_anime_anilist() {
                 printf "%s" "Please enter the episode number (1-${episodes_total}): " && read -r progress
             fi
             if [ -z "$progress" ]; then
-                send_notification "Error" "1000" "" "No episode number provided"
+                send_notification "Error" "1000" "$images_cache_dir/  $title $media_id.jpg" "No episode number provided"
                 exit 1
             fi
             progress=$((progress - 1))
@@ -890,7 +887,7 @@ add_to_history() {
             if printf "%s" "$response" | grep -q "errors"; then
                 send_notification "Error" "" "" "Could not update progress"
             else
-                send_notification "Updated progress to $((progress + 1))/$episodes_total episodes watched"
+                send_notification "Updated progress to $((progress + 1))/$episodes_total episodes watched" ""
                 [ -n "$history" ] && $sed -i "/^$media_id/d" "$history_file"
             fi
         else
@@ -967,11 +964,11 @@ read_chapter() {
     case "$manga_format" in
         pdf)
             [ -f "$manga_dir/$title/chapter_$((progress + 1))/$title - Chapter $((progress + 1)).pdf" ] || convert_to_pdf
-            send_notification "Opening $title - Chapter: $((progress + 1)) $chapter_title" "1000"
+            send_notification "Opening - $title" "1000" "$images_cache_dir/  $title $progress|$chapters_total chapters [$score] $media_id.jpg" "Chapter: $((progress + 1)) $chapter_title"
             ${manga_opener} "$manga_dir/$title/chapter_$((progress + 1))/$title - Chapter $((progress + 1)).pdf"
             ;;
         image)
-            send_notification "Opening $title - Chapter: $((progress + 1)) $chapter_title" "1000"
+            send_notification "Opening - $title" "1000" "$images_cache_dir/  $title $progress|$chapters_total chapters [$score] $media_id.jpg" "Chapter: $((progress + 1)) $chapter_title"
             ${manga_opener} "$manga_dir/$title/chapter_$((progress + 1))"
             ;;
     esac
@@ -983,7 +980,7 @@ read_chapter() {
             if printf "%s" "$response" | grep -q "errors"; then
                 send_notification "Error" "" "" "Could not update progress"
             else
-                send_notification "Updated progress to $((progress + 1))/$chapters_total chapters read"
+                send_notification "Updated progress to $((progress + 1))/$chapters_total chapters read" "" "$images_cache_dir/  $title $progress|$chapters_total chapters [$score] $media_id.jpg"
                 progress=$((progress + 1))
             fi
             ;;
@@ -1052,7 +1049,7 @@ read_manga_choice() {
         send_notification "Jerry" "" "" "Error, no manga found"
         exit 1
     fi
-    send_notification "Loading" "" "" "$title"
+    send_notification "Loading" "" "$images_cache_dir/  $title $progress|$chapters_total chapters [$score] $media_id.jpg" "$title"
     read_manga
 }
 
