@@ -307,7 +307,7 @@ get_anime_from_list() {
                 title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?|]* episodes.*@\1@p")
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes.*@\1@p")
-                [ -z "$episodes_total" ] && episodes_total=999
+                [ -z "$episodes_total" ] && episodes_total=9999
                 score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\]@\1@p")
                 ;;
             *)
@@ -318,7 +318,7 @@ get_anime_from_list() {
                 title=$(printf "%s" "$choice" | $sed -nE "s@(.*) [0-9?|]* episodes.*@\1@p")
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes.*@\1@p")
-                [ -z "$episodes_total" ] && episodes_total=999
+                [ -z "$episodes_total" ] && episodes_total=9999
                 score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\]@\1@p")
                 ;;
         esac
@@ -332,7 +332,7 @@ get_anime_from_list() {
                 title=$(printf "%s" "$choice" | $sed -nE "s@[[:space:]]*(.*) [0-9?|]* episodes.*@\1@p")
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes.*@\1@p")
-                [ -z "$episodes_total" ] && episodes_total=999
+                [ -z "$episodes_total" ] && episodes_total=9999
                 score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\]@\1@p")
                 ;;
             *)
@@ -342,7 +342,7 @@ get_anime_from_list() {
                 title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* episodes.*@\1@p")
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes.*@\1@p")
-                [ -z "$episodes_total" ] && episodes_total=999
+                [ -z "$episodes_total" ] && episodes_total=9999
                 score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\]@\1@p")
                 ;;
         esac
@@ -364,7 +364,7 @@ search_anime_anilist() {
                 media_id=$(printf "%s" "$choice" | cut -d\  -f1)
                 title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?]* episodes@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9?]*) episodes@\1@p")
-                [ -z "$episodes_total" ] && episodes_total=999
+                [ -z "$episodes_total" ] && episodes_total=9999
                 ;;
             *)
                 tmp_anime_list=$(printf "%s" "$anime_list" | $sed -nE "s@(.*\.[jpneg]*)[[:space:]]*([0-9]*)[[:space:]]*(.*)@\3\t\2\t\1@p")
@@ -373,7 +373,7 @@ search_anime_anilist() {
                 title=$(printf "%s" "$choice" | $sed -nE "s@(.*) [0-9?|]* episodes.*@\1@p")
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes.*@\1@p")
-                [ -z "$episodes_total" ] && episodes_total=999
+                [ -z "$episodes_total" ] && episodes_total=9999
                 ;;
         esac
     else
@@ -385,7 +385,7 @@ search_anime_anilist() {
                 media_id=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\.jpg@\1@p")
                 title=$(printf "%s" "$choice" | $sed -nE "s@[[:space:]]*(.*) [0-9?|]* episodes.*@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9?]*) episodes.*@\1@p")
-                [ -z "$episodes_total" ] && episodes_total=999
+                [ -z "$episodes_total" ] && episodes_total=9999
                 ;;
             *)
                 choice=$(printf "%s" "$anime_list" | launcher "Choose anime: " "3")
@@ -393,7 +393,7 @@ search_anime_anilist() {
                 title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* episodes@\1@p")
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes@\1@p")
-                [ -z "$episodes_total" ] && episodes_total=999
+                [ -z "$episodes_total" ] && episodes_total=9999
                 ;;
         esac
     fi
@@ -403,12 +403,12 @@ search_anime_anilist() {
         episodes_total=$(curl -s -X POST "$anilist_base" \
             -H 'Content-Type: application/json' \
             -d "{\"query\":\"query(\$page:Int = 1 \$id:Int \$type:MediaType \$isAdult:Boolean = false \$search:String \$format:[MediaFormat]\$status:MediaStatus \$countryOfOrigin:CountryCode \$source:MediaSource \$season:MediaSeason \$seasonYear:Int \$year:String \$onList:Boolean \$yearLesser:FuzzyDateInt \$yearGreater:FuzzyDateInt \$episodeLesser:Int \$episodeGreater:Int \$durationLesser:Int \$durationGreater:Int \$chapterLesser:Int \$chapterGreater:Int \$volumeLesser:Int \$volumeGreater:Int \$licensedBy:[Int]\$isLicensed:Boolean \$genres:[String]\$excludedGenres:[String]\$tags:[String]\$excludedTags:[String]\$minimumTagRank:Int \$sort:[MediaSort]=[POPULARITY_DESC,SCORE_DESC]){Page(page:\$page,perPage:20){pageInfo{total perPage currentPage lastPage hasNextPage}media(id:\$id type:\$type season:\$season format_in:\$format status:\$status countryOfOrigin:\$countryOfOrigin source:\$source search:\$search onList:\$onList seasonYear:\$seasonYear startDate_like:\$year startDate_lesser:\$yearLesser startDate_greater:\$yearGreater episodes_lesser:\$episodeLesser episodes_greater:\$episodeGreater duration_lesser:\$durationLesser duration_greater:\$durationGreater chapters_lesser:\$chapterLesser chapters_greater:\$chapterGreater volumes_lesser:\$volumeLesser volumes_greater:\$volumeGreater licensedById_in:\$licensedBy isLicensed:\$isLicensed genre_in:\$genres genre_not_in:\$excludedGenres tag_in:\$tags tag_not_in:\$excludedTags minimumTagRank:\$minimumTagRank sort:\$sort isAdult:\$isAdult){id title{userPreferred}coverImage{extraLarge large color}startDate{year month day}endDate{year month day}bannerImage season seasonYear description type format status(version:2)episodes duration chapters volumes genres isAdult averageScore popularity nextAiringEpisode{airingAt timeUntilAiring episode}mediaListEntry{id status}studios(isMain:true){edges{isMain node{id name}}}}}}\",\"variables\":{\"page\":1,\"type\":\"ANIME\",\"sort\":\"SEARCH_MATCH\",\"search\":\"$1\"}}" |
-            tr "\[\]" "\n" | $sed -nE "s@.*\"id\":${media_id}.*\"episodes\":([0-9]*)\,\".*@\1@p")
+            tr "\[\]" "\n" | $sed -nE "s@.*\"id\":${media_id},.*\"episodes\":([0-9]*)\,\".*@\1@p")
         [ -n "$progress" ] && return
         if [ "$episodes_total" = 1 ]; then
             progress=0
         else
-            [ -z "$episodes_total" ] && episodes_total=999
+            [ -z "$episodes_total" ] && episodes_total=9999
             if [ "$use_external_menu" = 1 ]; then
                 if [ -n "$rofi_prompt_config" ]; then
                     progress=$(printf "" | rofi -theme "$rofi_prompt_config" -sort -dmenu -i -width 1500 -p "" -mesg "Please enter the episode number (1-${episodes_total}): ")
@@ -1044,7 +1044,7 @@ watch_anime_choice() {
 
 read_manga_choice() {
     [ -z "$media_id" ] && get_manga_from_list "CURRENT"
-    [ -z "$chapters_total" ] && chapters_total="999"
+    [ -z "$chapters_total" ] && chapters_total="9999"
     if [ -z "$media_id" ] || [ -z "$title" ] || [ -z "$progress" ]; then
         send_notification "Jerry" "" "" "Error, no manga found"
         exit 1
