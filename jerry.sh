@@ -155,7 +155,7 @@ edit_configuration() {
         [ -z "$jerry_editor" ] && jerry_editor="vim"
         "$jerry_editor" "$config_file"
     else
-        printf "No configuration file found. Would you like to generate a default one? [y/N] " && read -r generate
+        printf "No configuration file found. Would you like to generate a default one? [Y/n] " && read -r generate
         case "$generate" in
             "Yes" | "yes" | "y" | "Y")
                 [ ! -d "$config_dir" ] && mkdir -p "$config_dir"
@@ -973,7 +973,7 @@ read_chapter() {
             ;;
     esac
     [ "$((progress + 1))" -eq "$chapters_total" ] && status="COMPLETED" || status="CURRENT"
-    completed_chapter=$(printf "Yes\nNo" | launcher "Do you want to update progress? [y/N] ")
+    completed_chapter=$(printf "Yes\nNo" | launcher "Do you want to update progress? [Y/n] ")
     case "$completed_chapter" in
         "Yes" | "yes" | "y" | "Y")
             response=$(update_progress "$progress" "$media_id" "$status")
@@ -1073,7 +1073,7 @@ main() {
             while :; do
                 watch_anime_choice
                 send_notification "Please only select Yes if you have finished watching the episode" "5000"
-                binge_watching=$(printf "Yes\nNo" | launcher "Do you want to keep binge watching? [y/N] ")
+                binge_watching=$(printf "Yes\nNo" | launcher "Do you want to keep binge watching? [Y/n] ")
                 case $binge_watching in
                     "Yes" | "yes" | "y" | "Y")
                         progress=$((progress + 1))
