@@ -1,6 +1,6 @@
 #!/bin/sh
 
-JERRY_VERSION=1.9.2
+JERRY_VERSION=1.9.3
 
 anilist_base="https://graphql.anilist.co"
 config_file="$HOME/.config/jerry/jerry.conf"
@@ -1163,6 +1163,27 @@ while [ $# -gt 0 ]; do
             break
             ;;
         -c | --continue) mode_choice="Watch Anime" && shift ;;
+        --clear-history | --delete-history)
+            while true; do
+                printf "This will delete your jerry history. Are you sure? [Y/n] "
+                read -r choice
+                case $choice in
+                    [Yy]* | "")
+                        #shellcheck disable=1090
+                        [ -f "$config_file" ] && . "$config_file"
+                        [ -z "$history_file" ] && history_file="$HOME/.local/share/jerry/jerry_history.txt"
+                        rm "$history_file"
+                        echo "History deleted."
+                        exit 0
+                        ;;
+                    [Nn]*)
+                        return 1
+                        ;;
+                    *) echo "Please answer yes or no." ;;
+                esac
+            done
+            shift
+            ;;
         --dub) dub="true" && shift ;;
         -e | --edit) edit_configuration ;;
         -h | --help)
