@@ -238,7 +238,7 @@ nth() {
 }
 
 nine_anime_helper() {
-    curl -s "$base_helper_url/$1?query=$2&apikey=saikou" | $sed -nE "s@.*\"$3\":\"([^\"]*)\".*@\1@p"
+    curl -s "$base_helper_url/$1?query=$2&apikey=jerry" | $sed -nE "s@.*\"$3\":\"([^\"]*)\".*@\1@p"
 }
 
 download_images() {
