@@ -1,6 +1,6 @@
 #!/bin/sh
 
-JERRY_VERSION=1.9.3
+JERRY_VERSION=1.9.4
 
 anilist_base="https://graphql.anilist.co"
 config_file="$HOME/.config/jerry/jerry.conf"
@@ -85,7 +85,7 @@ usage() {
     -v, --version
       Show the script version
     -w, --website
-      Choose which website to get video links from (default: 9anime) (currently supported: 9anime, zoro and yugen)
+      Choose which website to get video links from (default: 9anime) (currently supported: 9anime, kaido and yugen)
 
     Note: 
       All arguments can be specified in the config file as well.
@@ -683,9 +683,10 @@ get_anilist_info() {
 #### ANIME SCRAPING FUNCTIONS ####
 get_episode_info() {
     case "$provider" in
-        zoro)
-            zoro_id=$(curl -s "https://raw.githubusercontent.com/MALSync/MAL-Sync-Backup/master/data/anilist/anime/$media_id.json" | tr -d '\n' | $sed -nE "s@.*\"Zoro\":[[:space:]{]*\"([0-9]*)\".*@\1@p")
-            episode_info=$(curl -s "https://zoro.to/ajax/v2/episode/list/$zoro_id" | $sed -e "s/</\n/g" -e "s/\\\\//g" | $sed -nE "s_.*a title=\"([^\"]*)\".*data-id=\"([0-9]*)\".*_\2\t\1_p" | $sed -n "$((progress + 1))p")
+        kaido)
+            kaido_id=$(curl -s "https://raw.githubusercontent.com/MALSync/MAL-Sync-Backup/master/data/anilist/anime/$media_id.json" | grep -o 'https://zoro[^"]*' |
+                head -1 | $sed -nE "s@.*-([0-9]*)@\1@p")
+            episode_info=$(curl -s "https://kaido.to/ajax/episode/list/$kaido_id" | $sed -e "s/</\n/g" -e "s/\\\\//g" | $sed -nE "s_.*a title=\"([^\"]*)\".*data-id=\"([0-9]*)\".*_\2\t\1_p" | $sed -n "$((progress + 1))p")
             ;;
         yugen)
             response=$(curl -s "https://yugenanime.tv/discover/?q=$(printf "%s" "$title" | tr ' ' '+')" | $sed -nE "s@.*href=\"/([^\"]*)/\" title=\"([^\"]*)\".*@\2\t\1@p")
@@ -724,11 +725,12 @@ get_episode_info() {
 
 extract_from_json() {
     case "$provider" in
-        zoro)
+        kaido)
             encrypted=$(printf "%s" "$json_data" | tr "{}" "\n" | $sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p" | grep "\.m3u8")
             if [ -n "$encrypted" ]; then
                 video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | $sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p" | head -1)
             else
+                embed_type=0
                 key="$(curl -s "https://github.com/enimax-anime/key/blob/e${embed_type}/key.txt" | $sed -nE "s_.*js-file-line\">(.*)<.*_\1_p")"
                 encrypted_video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | $sed -nE "s_.*\"sources\":\"([^\"]*)\".*_\1_p" | head -1)
                 # ty @CoolnsX for helping me with figuring out how to implement aes in openssl
@@ -792,17 +794,17 @@ extract_from_json() {
 
 get_json() {
     case "$provider" in
-        zoro)
+        kaido)
 
             if [ "$dub" = true ]; then
-                source_id=$(curl -s "https://zoro.to/ajax/v2/episode/servers?episodeId=$episode_id" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"dub\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
+                source_id=$(curl -s "https://kaido.to/ajax/episode/servers?episodeId=$episode_id" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"dub\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
             else
-                source_id=$(curl -s "https://zoro.to/ajax/v2/episode/servers?episodeId=$episode_id" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"sub\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
+                source_id=$(curl -s "https://kaido.to/ajax/episode/servers?episodeId=$episode_id" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"sub\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
             fi
-            embed_link=$(curl -s "https://zoro.to/ajax/v2/episode/sources?id=$source_id" | $sed -nE "s_.*\"link\":\"([^\"]*)\".*_\1_p")
+            embed_link=$(curl -s "https://kaido.to/ajax/episode/sources?id=$source_id" | $sed -nE "s_.*\"link\":\"([^\"]*)\".*_\1_p")
 
             # get the juicy links
-            parse_embed=$(printf "%s" "$embed_link" | $sed -nE "s_(.*)/embed-(4|6)/(.*)\?k=1\$_\1\t\2\t\3_p")
+            parse_embed=$(printf "%s" "$embed_link" | $sed -nE "s_(.*)/embed-(4|6)/(.*)\?z=\$_\1\t\2\t\3_p")
             provider_link=$(printf "%s" "$parse_embed" | cut -f1)
             source_id=$(printf "%s" "$parse_embed" | cut -f3)
             embed_type=$(printf "%s" "$parse_embed" | cut -f2)
@@ -920,7 +922,7 @@ add_to_history() {
 
 play_video() {
     case "$provider" in
-        zoro)
+        kaido)
             displayed_episode_title="Ep $((progress + 1)) $episode_title"
             ;;
         yugen)
