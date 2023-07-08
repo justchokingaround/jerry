@@ -1,6 +1,6 @@
 #!/bin/sh
 
-JERRY_VERSION=1.9.4
+JERRY_VERSION=1.9.5
 
 anilist_base="https://graphql.anilist.co"
 config_file="$HOME/.config/jerry/jerry.conf"
@@ -731,7 +731,7 @@ extract_from_json() {
                 video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | $sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p" | head -1)
             else
                 embed_type=0
-                key="$(curl -s "https://github.com/enimax-anime/key/blob/e${embed_type}/key.txt" | $sed -nE "s_.*js-file-line\">(.*)<.*_\1_p")"
+                key="$(curl -s "https://9anime.eltik.net/key/${embed_type}")"
                 encrypted_video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | $sed -nE "s_.*\"sources\":\"([^\"]*)\".*_\1_p" | head -1)
                 # ty @CoolnsX for helping me with figuring out how to implement aes in openssl
                 video_link=$(printf "%s" "$encrypted_video_link" | base64 -d |
