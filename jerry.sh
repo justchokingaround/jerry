@@ -684,7 +684,7 @@ get_anilist_info() {
 get_episode_info() {
     case "$provider" in
         kaido)
-            kaido_id=$(curl -s "https://raw.githubusercontent.com/MALSync/MAL-Sync-Backup/master/data/anilist/anime/$media_id.json" | grep -o 'https://zoro[^"]*' |
+            kaido_id=$(curl -s "https://raw.githubusercontent.com/MALSync/MAL-Sync-Backup/master/data/anilist/anime/$media_id.json" | grep -o 'https://aniwatch[^"]*' |
                 head -1 | $sed -nE "s@.*-([0-9]*)@\1@p")
             episode_info=$(curl -s "https://kaido.to/ajax/episode/list/$kaido_id" | $sed -e "s/</\n/g" -e "s/\\\\//g" | $sed -nE "s_.*a title=\"([^\"]*)\".*data-id=\"([0-9]*)\".*_\2\t\1_p" | $sed -n "$((progress + 1))p")
             ;;
