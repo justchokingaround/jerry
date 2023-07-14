@@ -1,6 +1,6 @@
 #!/bin/sh
 
-JERRY_VERSION=1.9.5
+JERRY_VERSION=1.9.6
 
 anilist_base="https://graphql.anilist.co"
 config_file="$HOME/.config/jerry/jerry.conf"
@@ -682,26 +682,15 @@ get_anilist_info() {
 
 #### ANIME SCRAPING FUNCTIONS ####
 get_episode_info() {
+    mal_id=$(curl -s "https://api.ani.zip/mappings?anilist_id=${media_id}" | sed -nE "s@.*\"mal_id\":([0-9]*).*@\1@p")
     case "$provider" in
         kaido)
-            kaido_id=$(curl -s "https://raw.githubusercontent.com/MALSync/MAL-Sync-Backup/master/data/anilist/anime/$media_id.json" | grep -o 'https://aniwatch[^"]*' |
-                head -1 | $sed -nE "s@.*-([0-9]*)@\1@p")
+            kaido_id=$(curl -s "https://api.malsync.moe/mal/anime/${mal_id}" | tr '}' '\n' | sed -nE "s@.*\"Zoro\".*\"url\":\".*-([0-9]*)\".*@\1@p")
             episode_info=$(curl -s "https://kaido.to/ajax/episode/list/$kaido_id" | $sed -e "s/</\n/g" -e "s/\\\\//g" | $sed -nE "s_.*a title=\"([^\"]*)\".*data-id=\"([0-9]*)\".*_\2\t\1_p" | $sed -n "$((progress + 1))p")
             ;;
         yugen)
-            response=$(curl -s "https://yugenanime.tv/discover/?q=$(printf "%s" "$title" | tr ' ' '+')" | $sed -nE "s@.*href=\"/([^\"]*)/\" title=\"([^\"]*)\".*@\2\t\1@p")
-            [ -z "$response" ] && exit 1
-            # if it is only one line long, then auto select it
-            if [ "$(printf "%s\n" "$response" | wc -l)" -eq 1 ]; then
-                send_notification "Jerry" "" "" "Since there is only one result, it was automatically selected"
-                choice=$response
-            else
-                choice=$(printf "%s" "$response" | launcher "Choose anime: " 1)
-            fi
-            [ -z "$choice" ] && exit 1
-            title=$(printf "%s" "$choice" | cut -f1)
-            href=$(printf "%s" "$choice" | cut -f2)
-            tmp_episode_info=$(curl -s "https://yugenanime.tv/$href/watch/" | $sed -nE "s@.*href=\"/([^\"]*)\" title=\"([^\"]*)\".*@\1\t\2@p" | $sed -n "$((progress + 1))p")
+            href=$(curl -s "https://api.malsync.moe/mal/anime/51009" | tr '}' '\n' | sed -nE "s@.*\"YugenAnime\".*\"url\":\"([^\"]*)\".*@\1@p")
+            tmp_episode_info=$(curl -s "${href}watch/" | $sed -nE "s@.*href=\"/([^\"]*)\" title=\"([^\"]*)\".*@\1\t\2@p" | $sed -n "$((progress + 1))p")
             tmp_href=$(printf "%s" "$tmp_episode_info" | cut -f1)
             ep_title=$(printf "%s" "$tmp_episode_info" | cut -f2)
             if [ "$dub" = true ]; then
@@ -711,7 +700,7 @@ get_episode_info() {
             episode_info=$(printf "%s\t%s" "$yugen_id" "$ep_title")
             ;;
         9anime)
-            nineanime_href=$(curl -s "https://raw.githubusercontent.com/MALSync/MAL-Sync-Backup/master/data/anilist/anime/$media_id.json" | grep -o 'https://9anime[^"]*' | head -1)
+            nineanime_href=$(curl -s "https://api.malsync.moe/mal/anime/${mal_id}" | tr '}' '\n' | sed -nE "s@.*\"9anime\".*\"url\":\"([^\"]*)\".*@\1@p")
             data_id=$(curl -s "$nineanime_href" | $sed -nE "s@.*data-id=\"([0-9]*)\" data-url.*@\1@p")
 
             ep_list_vrf=$(nine_anime_helper "vrf" "$data_id" "url")
@@ -853,6 +842,7 @@ get_chapter_info() {
     manga_provider="mangadex"
     case "$manga_provider" in
         mangadex)
+            # TODO: fix this
             mangadex_id=$(curl -s "https://raw.githubusercontent.com/MALSync/MAL-Sync-Backup/master/data/anilist/manga/$media_id.json" | tr -d "\n" | $sed -nE "s@.*\"Mangadex\":[[:space:]{]*\"([^\"]*)\".*@\1@p")
             chapter_info=$(curl -s "https://api.mangadex.org/manga/$mangadex_id/feed?limit=164&translatedLanguage[]=en" | $sed "s/}]},/\n/g" |
                 $sed -nE "s@.*\"id\":\"([^\"]*)\".*\"chapter\":\"$((progress + 1))\",\"title\":\"([^\"]*)\".*@\1\t\2@p" | head -1)
