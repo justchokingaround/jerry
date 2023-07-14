@@ -24,7 +24,7 @@ Jerry is a command line tool for streaming anime from various providers. It can 
 - [Credits](#credits)
 
 ## Features
-- Search for and stream anime from various providers (currently supported: 9anime, kaido and yugen) (default: 9anime)
+- Search for and stream anime from various providers (currently supported: 9anime, aniwatch and yugen) (default: 9anime)
   (some providers, such as kaido and have support for external subtitles which allows more freedom)
 - Sync watch progress on Anilist on episode completion, and locally (down to the second watched, just like YouTube and Netflix does it)
 - Customize subtitle language, video quality, provider and many other things (using arguments or config file)

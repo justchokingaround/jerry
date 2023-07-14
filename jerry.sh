@@ -1,6 +1,6 @@
 #!/bin/sh
 
-JERRY_VERSION=1.9.6
+JERRY_VERSION=1.9.7
 
 anilist_base="https://graphql.anilist.co"
 config_file="$HOME/.config/jerry/jerry.conf"
@@ -85,7 +85,7 @@ usage() {
     -v, --version
       Show the script version
     -w, --website
-      Choose which website to get video links from (default: 9anime) (currently supported: 9anime, kaido and yugen)
+      Choose which website to get video links from (default: 9anime) (currently supported: 9anime, aniwatch and yugen)
 
     Note: 
       All arguments can be specified in the config file as well.
@@ -306,7 +306,7 @@ get_anime_from_list() {
                 media_id=$(printf "%s" "$choice" | cut -d\  -f1)
                 title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?|]* episodes.*@\1@p")
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
-                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes.*@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
                 score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\]@\1@p")
                 ;;
@@ -317,7 +317,7 @@ get_anime_from_list() {
                 media_id=$(printf "%s" "$choice" | cut -f2)
                 title=$(printf "%s" "$choice" | $sed -nE "s@(.*) [0-9?|]* episodes.*@\1@p")
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
-                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes.*@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
                 score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\]@\1@p")
                 ;;
@@ -331,7 +331,7 @@ get_anime_from_list() {
                 media_id=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\.jpg@\1@p")
                 title=$(printf "%s" "$choice" | $sed -nE "s@[[:space:]]*(.*) [0-9?|]* episodes.*@\1@p")
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
-                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes.*@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
                 score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\]@\1@p")
                 ;;
@@ -341,7 +341,7 @@ get_anime_from_list() {
                 media_id=$(printf "%s" "$choice" | cut -f2)
                 title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* episodes.*@\1@p")
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
-                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes.*@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
                 score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\]@\1@p")
                 ;;
@@ -363,7 +363,7 @@ search_anime_anilist() {
                 [ -z "$choice" ] && exit 1
                 media_id=$(printf "%s" "$choice" | cut -d\  -f1)
                 title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?]* episodes@\1@p")
-                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9?]*) episodes@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
                 ;;
             *)
@@ -372,7 +372,7 @@ search_anime_anilist() {
                 media_id=$(printf "%s" "$choice" | cut -f2)
                 title=$(printf "%s" "$choice" | $sed -nE "s@(.*) [0-9?|]* episodes.*@\1@p")
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
-                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes.*@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
                 ;;
         esac
@@ -384,7 +384,7 @@ search_anime_anilist() {
                 [ -z "$choice" ] && exit 0
                 media_id=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\.jpg@\1@p")
                 title=$(printf "%s" "$choice" | $sed -nE "s@[[:space:]]*(.*) [0-9?|]* episodes.*@\1@p")
-                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9?]*) episodes.*@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
                 ;;
             *)
@@ -392,7 +392,7 @@ search_anime_anilist() {
                 media_id=$(printf "%s" "$choice" | cut -f2)
                 title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* episodes@\1@p")
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes@\1@p")
-                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) episodes@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
                 ;;
         esac
@@ -684,9 +684,9 @@ get_anilist_info() {
 get_episode_info() {
     mal_id=$(curl -s "https://api.ani.zip/mappings?anilist_id=${media_id}" | sed -nE "s@.*\"mal_id\":([0-9]*).*@\1@p")
     case "$provider" in
-        kaido)
-            kaido_id=$(curl -s "https://api.malsync.moe/mal/anime/${mal_id}" | tr '}' '\n' | sed -nE "s@.*\"Zoro\".*\"url\":\".*-([0-9]*)\".*@\1@p")
-            episode_info=$(curl -s "https://kaido.to/ajax/episode/list/$kaido_id" | $sed -e "s/</\n/g" -e "s/\\\\//g" | $sed -nE "s_.*a title=\"([^\"]*)\".*data-id=\"([0-9]*)\".*_\2\t\1_p" | $sed -n "$((progress + 1))p")
+        aniwatch)
+            aniwatch_id=$(curl -s "https://api.malsync.moe/mal/anime/${mal_id}" | tr '}' '\n' | sed -nE "s@.*\"Zoro\".*\"url\":\".*-([0-9]*)\".*@\1@p")
+            episode_info=$(curl -s "https://aniwatch.to/ajax/v2/episode/list/${aniwatch_id}" | $sed -e "s/</\n/g" -e "s/\\\\//g" | $sed -nE "s_.*a title=\"([^\"]*)\".*data-id=\"([0-9]*)\".*_\2\t\1_p" | $sed -n "$((progress + 1))p")
             ;;
         yugen)
             href=$(curl -s "https://api.malsync.moe/mal/anime/51009" | tr '}' '\n' | sed -nE "s@.*\"YugenAnime\".*\"url\":\"([^\"]*)\".*@\1@p")
@@ -714,13 +714,13 @@ get_episode_info() {
 
 extract_from_json() {
     case "$provider" in
-        kaido)
+        aniwatch)
             encrypted=$(printf "%s" "$json_data" | tr "{}" "\n" | $sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p" | grep "\.m3u8")
             if [ -n "$encrypted" ]; then
                 video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | $sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p" | head -1)
             else
-                embed_type=0
-                key="$(curl -s "https://9anime.eltik.net/key/${embed_type}")"
+                key_number=6
+                key="$(curl -s "https://9anime.eltik.net/key/${key_number}")"
                 encrypted_video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | $sed -nE "s_.*\"sources\":\"([^\"]*)\".*_\1_p" | head -1)
                 # ty @CoolnsX for helping me with figuring out how to implement aes in openssl
                 video_link=$(printf "%s" "$encrypted_video_link" | base64 -d |
@@ -783,22 +783,23 @@ extract_from_json() {
 
 get_json() {
     case "$provider" in
-        kaido)
+        aniwatch)
 
             if [ "$dub" = true ]; then
-                source_id=$(curl -s "https://kaido.to/ajax/episode/servers?episodeId=$episode_id" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"dub\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
+                source_id=$(curl -s "https://aniwatch.to/ajax/v2/episode/servers?episodeId=$episode_id" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"dub\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
             else
-                source_id=$(curl -s "https://kaido.to/ajax/episode/servers?episodeId=$episode_id" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"sub\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
+                source_id=$(curl -s "https://aniwatch.to/ajax/v2/episode/servers?episodeId=$episode_id" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"sub\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
             fi
-            embed_link=$(curl -s "https://kaido.to/ajax/episode/sources?id=$source_id" | $sed -nE "s_.*\"link\":\"([^\"]*)\".*_\1_p")
+            embed_link=$(curl -s "https://aniwatch.to/ajax/v2/episode/sources?id=$source_id" | $sed -nE "s_.*\"link\":\"([^\"]*)\".*_\1_p")
 
             # get the juicy links
-            parse_embed=$(printf "%s" "$embed_link" | $sed -nE "s_(.*)/embed-(4|6)/(.*)\?z=\$_\1\t\2\t\3_p")
+            parse_embed=$(printf "%s" "$embed_link" | $sed -nE "s_(.*)/embed-(2|4|6)/e-([0-9])/(.*)\?k=1\$_\1\t\2\t\3\t\4_p")
             provider_link=$(printf "%s" "$parse_embed" | cut -f1)
-            source_id=$(printf "%s" "$parse_embed" | cut -f3)
             embed_type=$(printf "%s" "$parse_embed" | cut -f2)
+            e_number=$(printf "%s" "$parse_embed" | cut -f3)
+            source_id=$(printf "%s" "$parse_embed" | cut -f4)
 
-            json_data=$(curl -s "${provider_link}/ajax/embed-${embed_type}/getSources?id=${source_id}" -H "X-Requested-With: XMLHttpRequest")
+            json_data=$(curl -s "${provider_link}/embed-${embed_type}/ajax/e-${e_number}/getSources?id=${source_id}" -H "X-Requested-With: XMLHttpRequest")
             ;;
         yugen)
             json_data=$(curl -s 'https://yugenanime.tv/api/embed/' -X POST -H 'X-Requested-With: XMLHttpRequest' --data-raw "id=$episode_id&ac=0")
@@ -912,7 +913,7 @@ add_to_history() {
 
 play_video() {
     case "$provider" in
-        kaido)
+        aniwatch)
             displayed_episode_title="Ep $((progress + 1)) $episode_title"
             ;;
         yugen)
@@ -1265,6 +1266,10 @@ while [ $# -gt 0 ]; do
     esac
 done
 query="$(printf "%s" "$query" | tr ' ' '-' | $sed "s/^-//g")"
+case "$provider" in
+    zoro | kaido) provider="aniwatch" ;;
+    *) send_notification "Invalid provider" && exit 1 ;;
+esac
 if [ "$image_preview" = 1 ]; then
     test -d "$images_cache_dir" || mkdir -p "$images_cache_dir"
     if [ "$use_external_menu" = 1 ]; then
