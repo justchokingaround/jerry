@@ -1,6 +1,6 @@
 #!/bin/sh
 
-JERRY_VERSION=1.9.7
+JERRY_VERSION=1.9.8
 
 anilist_base="https://graphql.anilist.co"
 config_file="$HOME/.config/jerry/jerry.conf"
@@ -1268,6 +1268,8 @@ done
 query="$(printf "%s" "$query" | tr ' ' '-' | $sed "s/^-//g")"
 case "$provider" in
     zoro | kaido) provider="aniwatch" ;;
+    9anime | nineanime) provider="9anime" ;;
+    yugen | yugenanime) provider="yugen" ;;
     *) send_notification "Invalid provider" && exit 1 ;;
 esac
 if [ "$image_preview" = 1 ]; then
