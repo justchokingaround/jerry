@@ -218,8 +218,8 @@ EOF
 launcher() {
     case "$use_external_menu" in
         1)
-            [ -z "$2" ] && rofi -sort -dmenu -i -width 1500 -p "" -mesg "$1"
-            [ -n "$2" ] && rofi -sort -dmenu -i -width 1500 -p "" -mesg "$1" -display-columns "$2"
+            [ -z "$2" ] && rofi -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "$1" -matching fuzzy -sorting-method fzf
+            [ -n "$2" ] && rofi -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "$1" -display-columns "$2" -matching fuzzy -sorting-method fzf
             ;;
         *)
             [ -z "$2" ] && fzf --cycle --reverse --prompt "$1"
@@ -284,7 +284,9 @@ image_preview_fzf() {
 
 select_desktop_entry() {
     if [ "$use_external_menu" = "1" ]; then
-        [ -n "$image_config_path" ] && choice=$(rofi -show drun -drun-categories jerry -filter "$1" -show-icons -theme "$image_config_path" -i | $sed -nE "s@.*/([0-9]*)\.desktop@\1@p") 2>/dev/null || choice=$(rofi -show drun -drun-categories jerry -filter "$1" -show-icons -i | $sed -nE "s@.*/([0-9]*)\.desktop@\1@p") 2>/dev/null
+        [ -n "$image_config_path" ] && choice=$(rofi -show drun -drun-categories jerry -filter "$1" -show-icons -theme "$image_config_path" -i -matching fuzzy -sorting-method fzf |
+            $sed -nE "s@.*/([0-9]*)\.desktop@\1@p") 2>/dev/null ||
+            choice=$(rofi -show drun -drun-categories jerry -filter "$1" -show-icons -i -matching fuzzy -sorting-method fzf | $sed -nE "s@.*/([0-9]*)\.desktop@\1@p") 2>/dev/null
     else
         image_preview_fzf "$1"
     fi
