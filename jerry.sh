@@ -1,6 +1,6 @@
 #!/bin/sh
 
-JERRY_VERSION=1.9.8
+JERRY_VERSION=1.9.9
 
 anilist_base="https://graphql.anilist.co"
 config_file="$HOME/.config/jerry/jerry.conf"
@@ -715,16 +715,33 @@ get_episode_info() {
 extract_from_json() {
     case "$provider" in
         aniwatch)
-            encrypted=$(printf "%s" "$json_data" | tr "{}" "\n" | $sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p" | grep "\.m3u8")
+            json_key="file"
+            encrypted=$(printf "%s" "$json_data" | tr "{}" "\n" | $sed -nE "s_.*\"${json_key}\":\"([^\"]*)\".*_\1_p" | grep "\.m3u8")
             if [ -n "$encrypted" ]; then
-                video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | $sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p" | head -1)
+                video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | $sed -nE "s_.*\"${json_key}\":\"([^\"]*)\".*_\1_p" | head -1)
             else
-                key_number=6
-                key="$(curl -s "https://9anime.eltik.net/key/${key_number}")"
+                json_key="sources"
+                encrypted=$(printf "%s" "$json_data" | tr "{}" "\n" | $sed -nE "s_.*\"${json_key}\":\"([^\"]*)\".*_\1_p")
+                embed_type="6"
+                enikey=$(curl -s "https://github.com/enimax-anime/key/blob/e${embed_type}/key.txt" | $sed -nE "s@.*rawLines\":\[\"([^\"]*)\".*@\1@p" |
+                    $sed 's/\[\([0-9]*\),\([0-9]*\)\]/\1-\2/g;s/\[//g;s/\]//g;s/,/ /g')
+
                 encrypted_video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | $sed -nE "s_.*\"sources\":\"([^\"]*)\".*_\1_p" | head -1)
+
+                final_key=""
+                tmp_encrypted_video_link="$encrypted_video_link"
+                for key in $enikey; do
+                    start="${key%-*}"
+                    start=$((start + 1))
+                    end="${key#*-}"
+                    key=$(printf "%s" "$encrypted_video_link" | cut -c"$start-$end")
+                    final_key="$final_key$key"
+                    tmp_encrypted_video_link=$(printf "%s" "$tmp_encrypted_video_link" | $sed "s/$key//g")
+                done
+
                 # ty @CoolnsX for helping me with figuring out how to implement aes in openssl
-                video_link=$(printf "%s" "$encrypted_video_link" | base64 -d |
-                    openssl enc -aes-256-cbc -d -md md5 -k "$key" 2>/dev/null | $sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p")
+                video_link=$(printf "%s" "$tmp_encrypted_video_link" | base64 -d |
+                    openssl enc -aes-256-cbc -d -md md5 -k "$final_key" 2>/dev/null | $sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p")
                 json_data=$(printf "%s" "$json_data" | $sed -e "s|${encrypted_video_link}|${video_link}|")
             fi
             [ -n "$quality" ] && video_link=$(printf "%s" "$video_link" | $sed -e "s|/playlist.m3u8|/$quality/index.m3u8|")
