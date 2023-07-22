@@ -284,7 +284,7 @@ image_preview_fzf() {
 
 select_desktop_entry() {
     if [ "$use_external_menu" = "1" ]; then
-        [ -n "$image_config_path" ] && choice=$(rofi -show drun -drun-categories jerry -filter "$1" -show-icons -theme "$image_config_path" | $sed -nE "s@.*/([0-9]*)\.desktop@\1@p") 2>/dev/null || choice=$(rofi -show drun -drun-categories jerry -filter "$1" -show-icons | $sed -nE "s@.*/([0-9]*)\.desktop@\1@p") 2>/dev/null
+        [ -n "$image_config_path" ] && choice=$(rofi -show drun -drun-categories jerry -filter "$1" -show-icons -theme "$image_config_path" -i | $sed -nE "s@.*/([0-9]*)\.desktop@\1@p") 2>/dev/null || choice=$(rofi -show drun -drun-categories jerry -filter "$1" -show-icons -i | $sed -nE "s@.*/([0-9]*)\.desktop@\1@p") 2>/dev/null
     else
         image_preview_fzf "$1"
     fi
