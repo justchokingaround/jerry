@@ -691,7 +691,7 @@ get_episode_info() {
             episode_info=$(curl -s "https://aniwatch.to/ajax/v2/episode/list/${aniwatch_id}" | $sed -e "s/</\n/g" -e "s/\\\\//g" | $sed -nE "s_.*a title=\"([^\"]*)\".*data-id=\"([0-9]*)\".*_\2\t\1_p" | $sed -n "$((progress + 1))p")
             ;;
         yugen)
-            href=$(curl -s "https://api.malsync.moe/mal/anime/51009" | tr '}' '\n' | sed -nE "s@.*\"YugenAnime\".*\"url\":\"([^\"]*)\".*@\1@p")
+            href=$(curl -s "https://api.malsync.moe/mal/anime/${mal_id}" | tr '}' '\n' | sed -nE "s@.*\"YugenAnime\".*\"url\":\"([^\"]*)\".*@\1@p")
             tmp_episode_info=$(curl -s "${href}watch/" | $sed -nE "s@.*href=\"/([^\"]*)\" title=\"([^\"]*)\".*@\1\t\2@p" | $sed -n "$((progress + 1))p")
             tmp_href=$(printf "%s" "$tmp_episode_info" | cut -f1)
             ep_title=$(printf "%s" "$tmp_episode_info" | cut -f2)
