@@ -125,6 +125,7 @@ configuration() {
     [ -z "$ueberzug_max_height" ] && ueberzug_max_height=$(($(tput lines) / 2))
     [ -z "$json_output" ] && json_output=0
     [ -z "$dub" ] && dub="false"
+    [ -z "$score_on_completion" ] && score_on_completion="false"
     if [ "$no_anilist" = 0 ] || [ "$no_anilist" = "false" ]; then
         no_anilist=""
     fi
@@ -308,9 +309,9 @@ get_anime_from_list() {
                 media_id=$(printf "%s" "$choice" | cut -d\  -f1)
                 title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?|]* episodes.*@\1@p")
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
-                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
-                score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\]@\1@p")
+                score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\].*@\1@p")
                 ;;
             *)
                 tmp_anime_list=$(printf "%s" "$anime_list" | $sed -nE "s@(.*\.[jpneg]*)[[:space:]]*([0-9]*)[[:space:]]*(.*)@\3\t\2\t\1@p")
@@ -319,9 +320,9 @@ get_anime_from_list() {
                 media_id=$(printf "%s" "$choice" | cut -f2)
                 title=$(printf "%s" "$choice" | $sed -nE "s@(.*) [0-9?|]* episodes.*@\1@p")
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
-                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
-                score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\]@\1@p")
+                score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\].*@\1@p")
                 ;;
         esac
     else
@@ -333,9 +334,9 @@ get_anime_from_list() {
                 media_id=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\.jpg@\1@p")
                 title=$(printf "%s" "$choice" | $sed -nE "s@[[:space:]]*(.*) [0-9?|]* episodes.*@\1@p")
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
-                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
-                score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\]@\1@p")
+                score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\].*@\1@p")
                 ;;
             *)
                 choice=$(printf "%s" "$anime_list" | launcher "Choose anime: " "3")
@@ -343,9 +344,9 @@ get_anime_from_list() {
                 media_id=$(printf "%s" "$choice" | cut -f2)
                 title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* episodes.*@\1@p")
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
-                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
-                score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\]@\1@p")
+                score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\].*@\1@p")
                 ;;
         esac
     fi
@@ -627,11 +628,17 @@ update_status() {
 }
 
 update_score() {
-    status_choice=$(printf "CURRENT\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Filter by status: ")
-    case "$1" in
-        "ANIME") get_anime_from_list "$status_choice" ;;
-        "MANGA") get_manga_from_list "$status_choice" ;;
-    esac
+    if [ "$2" = "immediate" ]; then
+        [ "$1" = "ANIME" ] && total="$episodes_total"
+        [ "$1" = "MANGA" ] && total="$chapters_total"
+        [ $((progress + 1)) != "$total" ] && return
+    else
+        status_choice=$(printf "CURRENT\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Filter by status: ")
+        case "$1" in
+            "ANIME") get_anime_from_list "$status_choice" ;;
+            "MANGA") get_manga_from_list "$status_choice" ;;
+        esac
+    fi
     send_notification "Enter new score for: \"$title\"" "5000"
     send_notification "Current score: $score" "5000"
     if [ "$use_external_menu" = "0" ]; then
@@ -1052,6 +1059,7 @@ watch_anime_choice() {
     fi
     send_notification "Loading" "3000" "$images_cache_dir/  $title $progress|$episodes_total episodes $media_id.jpg" "$title"
     watch_anime
+    [ "$score_on_completion" = true ] && update_score "ANIME" "immediate"
 }
 
 read_manga_choice() {
@@ -1063,6 +1071,7 @@ read_manga_choice() {
     fi
     send_notification "Loading" "" "$images_cache_dir/  $title $progress|$chapters_total chapters [$score] $media_id.jpg" "$title"
     read_manga
+    [ "$score_on_completion" = true ] && update_score "MANGA" "immediate"
 }
 
 main() {
