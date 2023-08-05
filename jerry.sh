@@ -700,15 +700,15 @@ get_anilist_info() {
 
 #### ANIME SCRAPING FUNCTIONS ####
 get_episode_info() {
-    # mal_id=$(curl -s "https://api.ani.zip/mappings?anilist_id=${media_id}" | sed -nE "s@.*\"mal_id\":([0-9]*).*@\1@p")
-    [ -z "$mal_id" ] && mal_id=$(curl -s "https://api.enime.moe/mapping/anilist/${media_id}" | sed -nE "s@.*\{\"mal\":([0-9]*).*@\1@p")
     case "$provider" in
         aniwatch)
-            aniwatch_id=$(curl -s "https://api.malsync.moe/mal/anime/${mal_id}" | tr '}' '\n' | sed -nE "s@.*\"Zoro\".*\"url\":\".*-([0-9]*)\".*@\1@p")
+            aniwatch_id=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/anime/${media_id}.json" |
+                tr -d '\n ' | tr '}' '\n' | sed -nE "s@.*\"Zoro\".*\"url\":\".*-([0-9]*)\".*@\1@p")
             episode_info=$(curl -s "https://aniwatch.to/ajax/v2/episode/list/${aniwatch_id}" | $sed -e "s/</\n/g" -e "s/\\\\//g" | $sed -nE "s_.*a title=\"([^\"]*)\".*data-id=\"([0-9]*)\".*_\2\t\1_p" | $sed -n "$((progress + 1))p")
             ;;
         yugen)
-            href=$(curl -s "https://api.malsync.moe/mal/anime/${mal_id}" | tr '}' '\n' | sed -nE "s@.*\"YugenAnime\".*\"url\":\"([^\"]*)\".*@\1@p")
+            href=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/anime/${media_id}.json" |
+                tr -d '\n | 'tr '}' '\n' | sed -nE "s@.*\"YugenAnime\".*\"url\":\"([^\"]*)\".*@\1@p")
             tmp_episode_info=$(curl -s "${href}watch/" | $sed -nE "s@.*href=\"/([^\"]*)\" title=\"([^\"]*)\".*@\1\t\2@p" | $sed -n "$((progress + 1))p")
             tmp_href=$(printf "%s" "$tmp_episode_info" | cut -f1)
             ep_title=$(printf "%s" "$tmp_episode_info" | cut -f2)
@@ -719,8 +719,8 @@ get_episode_info() {
             episode_info=$(printf "%s\t%s" "$yugen_id" "$ep_title")
             ;;
         9anime)
-            nineanime_href=$(curl -s "https://api.malsync.moe/mal/anime/${mal_id}" | tr '}' '\n' |
-                sed -nE "s@.*\"9anime\".*\"url\":\"([^\"]*)\".*@\1@p" | head -1)
+            nineanime_href=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/anime/${media_id}.json" |
+                tr -d '\n ' | tr '}' '\n' | sed -nE "s@.*\"9anime\".*\"url\":\"([^\"]*)\".*@\1@p" | head -1 | sed "s/9anime\.../aniwave.to/")
             data_id=$(curl -s "$nineanime_href" | $sed -nE "s@.*data-id=\"([0-9]*)\" data-url.*@\1@p")
 
             ep_list_vrf=$(nine_anime_helper "vrf" "$data_id" "url")
@@ -823,10 +823,14 @@ get_json() {
         aniwatch)
 
             if [ "$dub" = true ]; then
-                source_id=$(curl -s "https://aniwatch.to/ajax/v2/episode/servers?episodeId=$episode_id" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"dub\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
+                source_id=$(curl -s "https://aniwatch.to/ajax/v2/episode/servers?episodeId=$episode_id" |
+                    $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"dub\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
             else
-                source_id=$(curl -s "https://aniwatch.to/ajax/v2/episode/servers?episodeId=$episode_id" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"sub\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
+                source_id=$(curl -s "https://aniwatch.to/ajax/v2/episode/servers?episodeId=$episode_id" |
+                    $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"sub\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
             fi
+            [ -z "$source_id" ] && source_id=$(curl -s "https://aniwatch.to/ajax/v2/episode/servers?episodeId=$episode_id" |
+                $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"raw\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
             embed_link=$(curl -s "https://aniwatch.to/ajax/v2/episode/sources?id=$source_id" | $sed -nE "s_.*\"link\":\"([^\"]*)\".*_\1_p")
 
             # get the juicy links
