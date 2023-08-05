@@ -30,6 +30,7 @@ Jerry is a command line tool for streaming anime from various providers. It can 
 - Customize subtitle language, video quality, provider and many other things (using arguments or config file)
 - Edit the configuration file using the command line
 - Update the script from GitHub
+- Discord Rich Presence: display currently watched anime in Discord (requires the installation of the helper python script: jerrydiscordpresence.py)
 - External menu support: ability to use rofi, so that opening a terminal window isn't even required to run the script !! (this can be used to setting the script to run on a keybind)
 - Output episode links in JSON format
 
@@ -40,11 +41,21 @@ Jerry is a command line tool for streaming anime from various providers. It can 
 sudo curl -sL github.com/justchokingaround/jerry/raw/main/jerry.sh -o /usr/local/bin/jerry &&
 sudo chmod +x /usr/local/bin/jerry
 ```
+#### Optional: Discord Rich Presence (requires python3 and the python packages: pypresence and httpx)
+```sh
+sudo curl -sL github.com/justchokingaround/jerry/raw/main/jerrydiscordpresence.py -o /usr/local/bin/jerrydiscordpresence.py &&
+sudo chmod +x /usr/local/bin/jerrydiscordpresence.py
+```
 ---
 ### Mac
 ```sh
 curl -sL github.com/justchokingaround/jerry/raw/main/jerry.sh -o "$(brew --prefix)"/bin/jerry &&
 chmod +x "$(brew --prefix)"/bin/jerry
+```
+#### Optional: Discord Rich Presence (requires python3 and the python packages: pypresence and httpx)
+```sh
+curl -sL github.com/justchokingaround/jerry/raw/main/jerrydiscordpresence.py -o "$(brew --prefix)"/bin/jerrydiscordpresence.py
+chmod +x "$(brew --prefix)"/bin/jerrydiscordpresence.py
 ```
 
 ## Usage

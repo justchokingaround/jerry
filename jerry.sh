@@ -64,6 +64,8 @@ usage() {
     -e, --edit
       Edit config file using an editor defined with jerry_editor in the config (\$EDITOR by default)
       If a config file does not exist, creates one with a default configuration
+		--d, --discord
+      Display currently watching anime in Discord Rich Presence (jerrydiscordpresence.py is required for this, check the readme for instructions on how to install it)
     -h, --help
       Show this help message and exit
     -i, --image-preview
@@ -129,6 +131,8 @@ configuration() {
     if [ "$no_anilist" = 0 ] || [ "$no_anilist" = "false" ]; then
         no_anilist=""
     fi
+    [ -z "$discord_presence" ] && discord_presence="false"
+    [ -z "$presence_script_path" ] && presence_script_path="jerrydiscordpresence.py"
 }
 
 check_credentials() {
@@ -371,7 +375,7 @@ search_anime_anilist() {
                 [ -z "$choice" ] && exit 1
                 media_id=$(printf "%s" "$choice" | cut -d\  -f1)
                 title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?]* episodes@\1@p")
-                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
                 ;;
             *)
@@ -380,7 +384,7 @@ search_anime_anilist() {
                 media_id=$(printf "%s" "$choice" | cut -f2)
                 title=$(printf "%s" "$choice" | $sed -nE "s@(.*) [0-9?|]* episodes.*@\1@p")
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
-                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
                 ;;
         esac
@@ -392,7 +396,7 @@ search_anime_anilist() {
                 [ -z "$choice" ] && exit 0
                 media_id=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\.jpg@\1@p")
                 title=$(printf "%s" "$choice" | $sed -nE "s@[[:space:]]*(.*) [0-9?|]* episodes.*@\1@p")
-                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
                 ;;
             *)
@@ -400,7 +404,7 @@ search_anime_anilist() {
                 media_id=$(printf "%s" "$choice" | cut -f2)
                 title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* episodes@\1@p")
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes@\1@p")
-                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
                 ;;
         esac
@@ -696,7 +700,8 @@ get_anilist_info() {
 
 #### ANIME SCRAPING FUNCTIONS ####
 get_episode_info() {
-    mal_id=$(curl -s "https://api.ani.zip/mappings?anilist_id=${media_id}" | sed -nE "s@.*\"mal_id\":([0-9]*).*@\1@p")
+    # mal_id=$(curl -s "https://api.ani.zip/mappings?anilist_id=${media_id}" | sed -nE "s@.*\"mal_id\":([0-9]*).*@\1@p")
+    [ -z "$mal_id" ] && mal_id=$(curl -s "https://api.enime.moe/mapping/anilist/${media_id}" | sed -nE "s@.*\{\"mal\":([0-9]*).*@\1@p")
     case "$provider" in
         aniwatch)
             aniwatch_id=$(curl -s "https://api.malsync.moe/mal/anime/${mal_id}" | tr '}' '\n' | sed -nE "s@.*\"Zoro\".*\"url\":\".*-([0-9]*)\".*@\1@p")
@@ -972,10 +977,18 @@ play_video() {
             fi
             if [ -n "$subs_links" ]; then
                 send_notification "$title" "4000" "$images_cache_dir/  $title $progress|$episodes_total episodes $media_id.jpg" "$displayed_episode_title"
-                mpv "$video_link" "$opts" "$subs_arg" "$subs_links" --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
+                if [ "$discord_presence" = "true" ]; then
+                    eval "$presence_script_path" \"mpv\" \"${title}\" \"$((progress + 1))\" \"${video_link}\" \"${subs_links}\" \"${opts}\"
+                else
+                    mpv "$video_link" "$opts" "$subs_arg" "$subs_links" --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
+                fi
             else
                 send_notification "$title" "4000" "$images_cache_dir/  $title $progress|$episodes_total episodes $media_id.jpg" "$displayed_episode_title"
-                mpv "$video_link" "$opts" --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
+                if [ "$discord_presence" = "true" ]; then
+                    eval "$presence_script_path" \"mpv\" \"${title}\" \"$((progress + 1))\" \"${video_link}\" \"\" \"${opts}\"
+                else
+                    mpv "$video_link" "$opts" --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
+                fi
             fi
             stopped_at=$($sed -nE "s@.*AV: ([0-9:]*) / ([0-9:]*) \(([0-9]*)%\).*@\1@p" "$tmp_position" | tail -1)
             percentage_progress=$($sed -nE "s@.*AV: ([0-9:]*) / ([0-9:]*) \(([0-9]*)%\).*@\3@p" "$tmp_position" | tail -1)
@@ -1180,7 +1193,6 @@ main() {
 
 configuration
 query=""
-# TODO: implement discord presence
 # TODO: add an argument for video_providers
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -1211,6 +1223,7 @@ while [ $# -gt 0 ]; do
             done
             shift
             ;;
+        -d | --discord) discord_presence=true && shift ;;
         --dub) dub="true" && shift ;;
         -e | --edit) edit_configuration ;;
         -h | --help)
