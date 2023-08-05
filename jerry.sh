@@ -242,6 +242,11 @@ nine_anime_helper() {
     curl -s "$base_helper_url/$1?query=$2&apikey=jerry" | $sed -nE "s@.*\"$3\":\"([^\"]*)\".*@\1@p"
 }
 
+nine_anime_extractor() {
+    futoken=$(curl -s "vidstream.pro/futoken")
+    curl -s "$base_helper_url/$1?query=$2&apikey=jerry" -d "query=${2}&futoken=${futoken}" | sed -nE "s@.*\"$3\":\"([^\"]*)\".*@\1@p"
+}
+
 download_images() {
     [ ! -d "$manga_dir/$title/chapter_$((progress + 1))" ] && mkdir -p "$manga_dir/$title/chapter_$((progress + 1))"
     send_notification "Downloading images" "" "$images_cache_dir/  $title $progress|$chapters_total chapters [$score] $media_id.jpg" "$title - Chapter: $((progress + 1)) $chapter_title"
@@ -709,13 +714,14 @@ get_episode_info() {
             episode_info=$(printf "%s\t%s" "$yugen_id" "$ep_title")
             ;;
         9anime)
-            nineanime_href=$(curl -s "https://api.malsync.moe/mal/anime/${mal_id}" | tr '}' '\n' | sed -nE "s@.*\"9anime\".*\"url\":\"([^\"]*)\".*@\1@p")
+            nineanime_href=$(curl -s "https://api.malsync.moe/mal/anime/${mal_id}" | tr '}' '\n' |
+                sed -nE "s@.*\"9anime\".*\"url\":\"([^\"]*)\".*@\1@p" | head -1)
             data_id=$(curl -s "$nineanime_href" | $sed -nE "s@.*data-id=\"([0-9]*)\" data-url.*@\1@p")
 
             ep_list_vrf=$(nine_anime_helper "vrf" "$data_id" "url")
-            episode_info=$(curl -sL "https://9anime.pl/ajax/episode/list/$data_id?vrf=$ep_list_vrf" | $sed 's/<li/\n/g;s/\\//g' |
+            episode_info=$(curl -sL "https://aniwave.to/ajax/episode/list/$data_id?vrf=$ep_list_vrf" | $sed 's/<li/\n/g;s/\\//g' |
                 $sed -nE "s@.*data-ids=\"([^\"]*)\".*data-jp=\"[^\"]*\">([^<]*)<.*@\1\t\2@p" | $sed -n "$((progress + 1))p")
-            [ -z "$episode_info" ] && episode_info=$(curl -sL "https://9anime.pl/ajax/episode/list/$data_id?vrf=$ep_list_vrf" | $sed 's/<li/\n/g;s/\\//g' |
+            [ -z "$episode_info" ] && episode_info=$(curl -sL "https://aniwave.to/ajax/episode/list/$data_id?vrf=$ep_list_vrf" | $sed 's/<li/\n/g;s/\\//g' |
                 $sed -nE "s@.*data-ids=\"([^\"]*)\".*@\1@p" | $sed -n "$((progress + 1))p")
             ;;
     esac
@@ -834,24 +840,24 @@ get_json() {
             server_list_vrf=$(nine_anime_helper "vrf" "$episode_id" "url")
 
             if [ "$dub" = true ]; then
-                provider_id=$(curl -sL "https://9anime.pl/ajax/server/list/$episode_id?vrf=$server_list_vrf" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-link-id=\"([^\"]*)\">$video_provider.*@\1@p" | tail -1)
+                provider_id=$(curl -sL "https://aniwave.to/ajax/server/list/$episode_id?vrf=$server_list_vrf" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-link-id=\"([^\"]*)\">$video_provider.*@\1@p" | tail -1)
                 provider_vrf=$(nine_anime_helper "vrf" "$provider_id" "url")
             else
-                provider_id=$(curl -sL "https://9anime.pl/ajax/server/list/$episode_id?vrf=$server_list_vrf" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-link-id=\"([^\"]*)\">$video_provider.*@\1@p" | head -1)
+                provider_id=$(curl -sL "https://aniwave.to/ajax/server/list/$episode_id?vrf=$server_list_vrf" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-link-id=\"([^\"]*)\">$video_provider.*@\1@p" | head -1)
                 provider_vrf=$(nine_anime_helper "vrf" "$provider_id" "url")
             fi
 
-            encrypted_provider_url=$(curl -sL "https://9anime.pl/ajax/server/$provider_id?vrf=$provider_vrf" | $sed "s/\\\//g" | $sed -nE "s@.*\{\"url\":\"([^\"]*)\".*@\1@p")
+            encrypted_provider_url=$(curl -sL "https://aniwave.to/ajax/server/$provider_id?vrf=$provider_vrf" | $sed "s/\\\//g" | $sed -nE "s@.*\{\"url\":\"([^\"]*)\".*@\1@p")
             provider_embed=$(nine_anime_helper "decrypt" "$encrypted_provider_url" "url")
             provider_query=$(printf "%s" "$provider_embed" | $sed -nE "s@.*/e/(.*)@\1@p")
 
             case "$video_provider" in
                 "Vidstream")
-                    raw_url=$(nine_anime_helper "rawvizcloud" "$provider_query" "rawURL")
+                    raw_url=$(nine_anime_extractor "rawvizcloud" "$provider_query" "rawURL")
                     json_data=$(curl -s "$raw_url" -e "$provider_embed" | $sed "s/\\\//g")
                     ;;
                 "MyCloud")
-                    raw_url=$(nine_anime_helper "rawmcloud" "$provider_query" "rawURL")
+                    raw_url=$(nine_anime_extractor "rawmcloud" "$provider_query" "rawURL")
                     json_data=$(curl -s "$raw_url" -e "$provider_embed" | $sed "s/\\\//g")
                     ;;
                     # "Mp4upload")
@@ -1295,8 +1301,8 @@ while [ $# -gt 0 ]; do
 done
 query="$(printf "%s" "$query" | tr ' ' '-' | $sed "s/^-//g")"
 case "$provider" in
-    zoro | kaido) provider="aniwatch" ;;
-    9anime | nineanime) provider="9anime" ;;
+    zoro | kaido | aniwatch) provider="aniwatch" ;;
+    9anime | nineanime | aniwave) provider="9anime" ;;
     yugen | yugenanime) provider="yugen" ;;
     *) send_notification "Invalid provider" && exit 1 ;;
 esac
