@@ -125,6 +125,8 @@ configuration() {
     [ -z "$ueberzug_max_width" ] && ueberzug_max_width=$(($(tput lines) / 2))
     [ -z "$ueberzug_max_height" ] && ueberzug_max_height=$(($(tput lines) / 2))
     [ -z "$json_output" ] && json_output=0
+    [ -z "$should_create_room" ] && should_create_room=0
+    [ -z "$reuse_room" ] && reuse_room=0
     [ -z "$dub" ] && dub="false"
     [ -z "$score_on_completion" ] && score_on_completion="false"
     if [ "$no_anilist" = 0 ] || [ "$no_anilist" = "false" ]; then
@@ -132,6 +134,7 @@ configuration() {
     fi
     [ -z "$discord_presence" ] && discord_presence="false"
     [ -z "$presence_script_path" ] && presence_script_path="jerrydiscordpresence.py"
+    [ -z "$ignore_update" ] && ignore_update="false"
 }
 
 check_credentials() {
@@ -883,6 +886,30 @@ extract_from_json() {
             esac
             ;;
     esac
+
+    if [ "$should_create_room" = "1" ]; then
+
+        proxy="https://proxy.anistreme.live/"
+
+        if [ "$reuse_room" = "1" ]; then
+            room_name=$(cat "$data_dir/last_room_name.txt")
+        else
+            room_name=$(create_room)
+        fi
+
+        room_link="https://www.watchparty.me/watch$room_name"
+
+        # todo: add option to change proxy url
+        video_link="$proxy$video_link"
+
+        echo $video_link
+
+        add_video_to_room $room_name $video_link
+        send_notification $room_link
+
+        exit 0
+    fi
+
     [ "$((progress + 1))" -eq "$episodes_total" ] && status="COMPLETED" || status="CURRENT"
 }
 
@@ -1165,6 +1192,33 @@ read_manga_choice() {
     [ "$score_on_completion" = true ] && update_score "MANGA" "immediate"
 }
 
+create_room() {
+    local room_name=$(curl -s -X POST "https://backend.watchparty.me/createRoom" d '{"video":""}' | jq .name -r)
+    echo "$room_name" >"$data_dir/last_room_name.txt"
+    echo "$room_name"
+}
+
+add_video_to_room() {
+    # todo: don't print everything that's happening here, and
+    # specifically killing the process if it's running on port 12345 and
+    # is websocat
+
+    # Killing websocat if it's running (there's probably a better way to do that)
+    killall -9 websocat
+
+    # Making it so the same connection can be resused
+    websocat -t -E tcp-l:127.0.0.1:12345 reuse-raw:"wss://backend.watchparty.me/socket.io/?clientId=6121fc7a-f04a-4e7e-914e-c611ceff13dd&password=&shard=2&EIO=4&transport=websocket" &
+    pid=$!
+
+    # Joining the room and then changing the video
+    echo "40$1," | nc 127.0.0.1 12345
+    echo "42$1,[\"CMD:name\",\"Jerry\"]" | nc 127.0.0.1 12345
+    echo "42$1,[\"CMD:host\",\"$2\"]" | nc 127.0.0.1 12345
+
+    # Killing websocat
+    kill -9 $pid
+}
+
 main() {
     if [ -z "$no_anilist" ]; then
         check_credentials
@@ -1265,6 +1319,8 @@ main() {
 
 configuration
 query=""
+# check for update
+[ "$ignore_update" = "false" ] && check_update "A new update is out. Would you like to update jerry? [Y/n] " "A new update for the presence script is out. Would you like to update jerrydiscordpresence.py? [Y/n] "
 # TODO: add an argument for video_providers
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -1293,6 +1349,11 @@ while [ $# -gt 0 ]; do
                     *) echo "Please answer yes or no." ;;
                 esac
             done
+            shift
+            ;;
+        --create)
+            no_anilist=1
+            should_create_room=1
             shift
             ;;
         -d | --discord) discord_presence=true && shift ;;
@@ -1348,6 +1409,12 @@ while [ $# -gt 0 ]; do
                     shift 2
                 fi
             fi
+            ;;
+        -r | --reuse)
+            no_anilist=1
+            should_create_room=1
+            reuse_room=1
+            shift
             ;;
         -s | --syncplay)
             player="syncplay"
