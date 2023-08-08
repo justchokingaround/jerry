@@ -63,7 +63,7 @@ usage() {
       Allows user to watch anime in dub
     -e, --edit
       Edit config file using an editor defined with jerry_editor in the config (\$EDITOR by default). If a config file does not exist, creates one with a default configuration
-		--d, --discord
+		-d, --discord
       Display currently watching anime in Discord Rich Presence (jerrydiscordpresence.py is required for this, check the readme for instructions on how to install it)
     -h, --help
       Show this help message and exit
@@ -214,7 +214,7 @@ check_update() {
     fi
 
     if [ "$discord_presence" = "true" ]; then
-        if [ ! -s "$presence_script_path" ]; then
+        if [ ! -f "$presence_script_path" ]; then
             if [ "$use_external_menu" = 0 ] || [ "$use_external_menu" = "false" ]; then
                 printf "No presence script found in path, would you like to download the default one?" && read -r answer
             else
