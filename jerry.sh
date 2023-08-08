@@ -134,6 +134,7 @@ configuration() {
     fi
     [ -z "$discord_presence" ] && discord_presence="false"
     [ -z "$presence_script_path" ] && presence_script_path="jerrydiscordpresence.py"
+    [ -z "$ignore_update" ] && ignore_update="false"
 }
 
 check_credentials() {
@@ -892,7 +893,7 @@ extract_from_json() {
     esac
 
     if [ "$should_create_room" = "1" ]; then
-        
+
         proxy="https://proxy.anistreme.live/"
 
         if [ "$reuse_room" = "1" ]; then
@@ -902,18 +903,18 @@ extract_from_json() {
         fi
 
         room_link="https://www.watchparty.me/watch$room_name"
-        
+
         # todo: add option to change proxy url
         video_link="$proxy$video_link"
-        
+
         echo $video_link
 
         add_video_to_room $room_name $video_link
         send_notification $room_link
-        
+
         exit 0
     fi
-    
+
     [ "$((progress + 1))" -eq "$episodes_total" ] && status="COMPLETED" || status="CURRENT"
 }
 
@@ -1204,14 +1205,14 @@ create_room() {
 
 add_video_to_room() {
     # todo: don't print everything that's happening here, and
-    # specifically killing the process if it's running on port 12345 and 
+    # specifically killing the process if it's running on port 12345 and
     # is websocat
-    
+
     # Killing websocat if it's running (there's probably a better way to do that)
     killall -9 websocat
-    
+
     # Making it so the same connection can be resused
-    websocat -t -E tcp-l:127.0.0.1:12345  reuse-raw:"wss://backend.watchparty.me/socket.io/?clientId=6121fc7a-f04a-4e7e-914e-c611ceff13dd&password=&shard=2&EIO=4&transport=websocket" &
+    websocat -t -E tcp-l:127.0.0.1:12345 reuse-raw:"wss://backend.watchparty.me/socket.io/?clientId=6121fc7a-f04a-4e7e-914e-c611ceff13dd&password=&shard=2&EIO=4&transport=websocket" &
     pid=$!
 
     # Joining the room and then changing the video
@@ -1324,7 +1325,7 @@ main() {
 configuration
 query=""
 # check for update
-check_update "A new update is out. Would you like to update jerry? [Y/n] " "A new update for the presence script is out. Would you like to update jerrydiscordpresence.py? [Y/n] "
+[ "$ignore_update" = "false" ] && check_update "A new update is out. Would you like to update jerry? [Y/n] " "A new update for the presence script is out. Would you like to update jerrydiscordpresence.py? [Y/n] "
 # TODO: add an argument for video_providers
 while [ $# -gt 0 ]; do
     case "$1" in
