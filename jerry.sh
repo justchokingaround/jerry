@@ -198,7 +198,7 @@ update_script() {
 
 check_update() {
     update=$(curl -s "https://raw.githubusercontent.com/justchokingaround/jerry/main/jerry.sh")
-    update="$(printf '%s\n' "$update" | diff -u "$0" -)"
+    update="$(printf '%s\n' "$update" | diff -u "$(command -v jerry)" -)"
     if [ -n "$update" ]; then
         if [ "$use_external_menu" = 0 ] || [ "$use_external_menu" = "false" ]; then
             printf "%s" "$1" && read -r answer
@@ -246,8 +246,8 @@ check_update() {
                 *) exit 0 ;;
             esac
         else
-            update=$(curl -s "https://raw.githubusercontent.com/justchokingaround/jerry/main/jerrydiscordpresence.py" || exit 1)
-            update="$(printf '%s\n' "$update" | diff -u "$presence_script_path" -)"
+            update=$(curl -s "https://raw.githubusercontent.com/justchokingaround/jerry/main/jerrydiscordpresence.py" || return)
+            update="$(printf '%s\n' "$update" | diff -u "$(command -v "$presence_script_path")" -)"
             if [ -n "$update" ]; then
                 if [ "$use_external_menu" = 0 ] || [ "$use_external_menu" = "false" ]; then
                     printf "%s" "$2" && read -r answer
@@ -256,7 +256,11 @@ check_update() {
                 fi
                 case "$answer" in
                     "Yes" | "yes" | "y" | "Y")
-                        if printf '%s\n' "$update" | patch "$presence_script_path" -; then
+                        case "$(uname -a)" in
+                            *Darwin* | *MINGW*) sucess=$(printf '%s\n' "$update" | patch "$(command -v "$presence_script_path")" -) ;;
+                            *) sucess=$(printf '%s\n' "$update" | sudo patch "$(command -v "$presence_script_path")" -) ;;
+                        esac
+                        if $sucess; then
                             send_notification "Script has been updated!"
                         else
                             send_notification "Can't update for some reason!"
@@ -1270,8 +1274,6 @@ main() {
 
 configuration
 query=""
-# check for update
-check_update "A new update is out. Would you like to update jerry? [Y/n] " "A new update for the presence script is out. Would you like to update jerrydiscordpresence.py? [Y/n] "
 # TODO: add an argument for video_providers
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -1391,6 +1393,8 @@ while [ $# -gt 0 ]; do
             ;;
     esac
 done
+# check for update
+check_update "A new update is out. Would you like to update jerry? [Y/n] " "A new update for the presence script is out. Would you like to update jerrydiscordpresence.py? [Y/n] "
 query="$(printf "%s" "$query" | tr ' ' '-' | $sed "s/^-//g")"
 case "$provider" in
     zoro | kaido | aniwatch) provider="aniwatch" ;;
