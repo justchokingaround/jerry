@@ -63,7 +63,7 @@ usage() {
       Allows user to watch anime in dub
     -e, --edit
       Edit config file using an editor defined with jerry_editor in the config (\$EDITOR by default). If a config file does not exist, creates one with a default configuration
-		-d, --discord
+		--d, --discord
       Display currently watching anime in Discord Rich Presence (jerrydiscordpresence.py is required for this, check the readme for instructions on how to install it)
     -h, --help
       Show this help message and exit
@@ -211,7 +211,7 @@ check_update() {
     fi
 
     if [ "$discord_presence" = "true" ]; then
-        if [ ! -f "$(command -v "$presence_script_path")" ]; then
+        if [ ! -s "$presence_script_path" ]; then
             if [ "$use_external_menu" = 0 ] || [ "$use_external_menu" = "false" ]; then
                 printf "No presence script found in path, would you like to download the default one?" && read -r answer
             else
@@ -1165,6 +1165,35 @@ read_manga_choice() {
     [ "$score_on_completion" = true ] && update_score "MANGA" "immediate"
 }
 
+binge() {
+    while :; do
+        if [ "$1" = "ANIME" ]; then
+            watch_anime_choice
+            [ $((progress + 1)) = "$episodes_total" ] && break
+            send_notification "Please only select Yes if you have finished watching the episode" "5000"
+            binge_watching=$(printf "Yes\nNo" | launcher "Do you want to keep binge watching? [Y/n] ")
+            case $binge_watching in
+                "Yes" | "yes" | "y" | "Y")
+                    progress=$((progress + 1))
+                    resume_from=""
+                    continue
+                    ;;
+                "No" | "no" | "n" | "N") break ;;
+            esac
+            sleep 1
+        elif [ "$1" = "MANGA" ]; then
+            read_manga_choice
+            [ $((progress + 1)) = "$chapters_total" ] && break
+            case $completed_chapter in
+                "No" | "no" | "n" | "N") break ;;
+            esac
+            sleep 1
+        else
+            exit 1
+        fi
+    done
+}
+
 main() {
     if [ -z "$no_anilist" ]; then
         check_credentials
@@ -1172,39 +1201,18 @@ main() {
             exit 1
         fi
         [ -n "$query" ] && mode_choice="Watch New Anime"
-        [ -z "$mode_choice" ] && mode_choice=$(printf "Watch Anime\nRead Manga\nBinge Watch Anime\nBinge Read Manga\nUpdate (Episodes, Status, Score)\nInfo\nWatch New Anime\nRead New Manga" | launcher "Choose an option: ")
+        [ -z "$mode_choice" ] && mode_choice=$(printf "Watch Anime\nRead Manga\nUpdate (Episodes, Status, Score)\nInfo\nWatch New Anime\nRead New Manga" | launcher "Choose an option: ")
     else
         # TODO: implement manga stuff for no_anilist
         [ -n "$query" ] && mode_choice="Watch Anime"
-        [ -z "$mode_choice" ] && mode_choice=$(printf "Resume from History\nWatch Anime\nBinge Watch Anime" | launcher "Choose an option: ")
+        [ -z "$mode_choice" ] && mode_choice=$(printf "Resume from History\nWatch Anime" | launcher "Choose an option: ")
     fi
     case "$mode_choice" in
-        "Watch Anime") watch_anime_choice && exit 0 ;;
-        "Read Manga") read_manga_choice && exit 0 ;;
-        "Binge Watch Anime")
-            while :; do
-                watch_anime_choice
-                send_notification "Please only select Yes if you have finished watching the episode" "5000"
-                binge_watching=$(printf "Yes\nNo" | launcher "Do you want to keep binge watching? [Y/n] ")
-                case $binge_watching in
-                    "Yes" | "yes" | "y" | "Y")
-                        progress=$((progress + 1))
-                        resume_from=""
-                        continue
-                        ;;
-                    "No" | "no" | "n" | "N") break ;;
-                esac
-                sleep 1
-            done
+        "Watch Anime")
+            binge "ANIME"
             ;;
-        "Binge Read Manga")
-            while :; do
-                read_manga_choice
-                case $completed_chapter in
-                    "No" | "no" | "n" | "N") break ;;
-                esac
-                sleep 1
-            done
+        "Read Manga")
+	    binge "MANGA"
             ;;
         "Update (Episodes, Status, Score)")
             update_choice=$(printf "Change Episodes Watched\nChange Chapters Read\nChange Status\nChange Score" | launcher "Choose an option: ")
@@ -1239,7 +1247,7 @@ main() {
             search_anime_anilist "$query"
             [ -z "$progress" ] && progress=0
             [ "$json_output" = true ] || send_notification "Disclaimer" "5000" "" "You need to complete the 1st episode to update your progress"
-            watch_anime
+            binge "ANIME"
             ;;
         "Read New Manga")
             [ -z "$query" ] && get_input "Search manga: "
@@ -1247,7 +1255,7 @@ main() {
             search_manga_anilist "$query"
             [ -z "$progress" ] && progress=0
             [ "$json_output" = true ] || send_notification "Disclaimer" "5000" "" "You need to complete the 1st chapter to update your progress"
-            read_manga
+            binge "MANGA"
             ;;
         "Resume from History")
             history_choice=$($sed -n "1h;1!{x;H;};\${g;p;}" "$history_file" | nl -w 1 | nth "Choose an entry: ")
@@ -1258,7 +1266,7 @@ main() {
             resume_from=$(printf "%s" "$history_choice" | cut -f3)
             title=$(printf "%s" "$history_choice" | cut -f4)
             [ -z "$media_id" ] && exit 1
-            watch_anime
+            binge "ANIME"
             ;;
     esac
 }
