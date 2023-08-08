@@ -214,7 +214,7 @@ check_update() {
     fi
 
     if [ "$discord_presence" = "true" ]; then
-        if [ ! -f "$presence_script_path" ]; then
+        if [ ! -f "$(command -v "$presence_script_path")" ]; then
             if [ "$use_external_menu" = 0 ] || [ "$use_external_menu" = "false" ]; then
                 printf "No presence script found in path, would you like to download the default one?" && read -r answer
             else
