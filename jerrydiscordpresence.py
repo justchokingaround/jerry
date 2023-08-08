@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import subprocess
 import sys
-import time
+import re
 
 import httpx
 from pypresence import Presence
@@ -13,7 +13,6 @@ rpc_client = Presence(CLIENT_ID)
 rpc_client.connect()
 
 http_client = httpx.Client(base_url=ENDPONT)
-
 
 (
     _,
@@ -60,11 +59,34 @@ process = subprocess.Popen(
     args
 )
 
-rpc_client.update(
-    details="Watching anime",
-    state=media_title,
-    large_image=media["posterImage"]["original"],
-    start=int(time.time()),
-)
+file_path = '/tmp/jerry_position'
+
+while True:
+    with open(file_path, 'r') as file:
+        content = file.read()
+    pattern = r'(\(Paused\)\s)?AV:\s([0-9:]*) / ([0-9:]*) \(([0-9]*)%\)'
+    matches = re.findall(pattern, content)
+    small_image = "https://cdn-icons-png.flaticon.com/128/3669/3669483.png"
+    if matches:
+        if matches[-1][0] == "(Paused) ":
+            small_image = "https://cdn-icons-png.flaticon.com/128/3669/3669483.png"  # <- pause
+            elapsed = matches[-1][1]
+        else:
+            small_image = "https://cdn-icons-png.flaticon.com/128/5577/5577228.png"  # <- play
+            elapsed = matches[-1][1]
+        duration = matches[-1][2]
+        position = f"{elapsed} / {duration}"
+    else:
+        position = "00:00:00"
+
+    rpc_client.update(
+        details=anime_name,
+        state=position,
+        large_image=media["posterImage"]["original"],
+        small_image=small_image,
+    )
+
+    if process.poll() is not None:
+        break
 
 process.wait()

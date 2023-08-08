@@ -43,12 +43,14 @@ sudo chmod +x /usr/local/bin/jerry
 ```
 #### Optional: Discord Rich Presence (requires python3 and the python packages: pypresence and httpx)
 ```sh
+pip install httpx pypresence re
 sudo curl -sL github.com/justchokingaround/jerry/raw/main/jerrydiscordpresence.py -o /usr/local/bin/jerrydiscordpresence.py &&
 sudo chmod +x /usr/local/bin/jerrydiscordpresence.py
 ```
 ---
 ### Mac
 ```sh
+pip install httpx pypresence re
 curl -sL github.com/justchokingaround/jerry/raw/main/jerry.sh -o "$(brew --prefix)"/bin/jerry &&
 chmod +x "$(brew --prefix)"/bin/jerry
 ```

@@ -62,8 +62,7 @@ usage() {
     --dub
       Allows user to watch anime in dub
     -e, --edit
-      Edit config file using an editor defined with jerry_editor in the config (\$EDITOR by default)
-      If a config file does not exist, creates one with a default configuration
+      Edit config file using an editor defined with jerry_editor in the config (\$EDITOR by default). If a config file does not exist, creates one with a default configuration
 		--d, --discord
       Display currently watching anime in Discord Rich Presence (jerrydiscordpresence.py is required for this, check the readme for instructions on how to install it)
     -h, --help
@@ -195,6 +194,81 @@ update_script() {
         fi
     fi
     exit 0
+}
+
+check_update() {
+    update=$(curl -s "https://raw.githubusercontent.com/justchokingaround/jerry/main/jerry.sh" || exit 1)
+    update="$(printf '%s\n' "$update" | diff -u "$0" -)"
+    if [ -n "$update" ]; then
+        if [ "$use_external_menu" = 0 ] || [ "$use_external_menu" = "false" ]; then
+            printf "%s" "$1" && read -r answer
+        else
+            answer=$(printf "Yes\nNo" | launcher "$1")
+        fi
+        case "$answer" in
+            "Yes" | "yes" | "y" | "Y") update_script ;;
+            *) exit 0 ;;
+        esac
+    fi
+
+    if [ "$discord_presence" = "true" ]; then
+        if [ ! -s "$presence_script_path" ]; then
+            if [ "$use_external_menu" = 0 ] || [ "$use_external_menu" = "false" ]; then
+                printf "Install python dependencies?" && read -r answer
+            else
+                answer=$(printf "Yes\nNo" | launcher "Install python dependencies?")
+            fi
+            case "$answer" in
+                "Yes" | "yes" | "y" | "Y") pip install pypresence re httpx ;;
+            esac
+
+            if [ "$use_external_menu" = 0 ] || [ "$use_external_menu" = "false" ]; then
+                printf "No presence script found in path, would you like to download the default one?" && read -r answer
+            else
+                answer=$(printf "Yes\nNo" | launcher "No presence script found in path, would you like to download the default one?")
+            fi
+            case "$answer" in
+                "Yes" | "yes" | "y" | "Y")
+                    case "$(uname -a)" in
+                        *Darwin*)
+                            curl -sL github.com/justchokingaround/jerry/raw/main/jerrydiscordpresence.py -o "$(brew --prefix)"/bin/jerrydiscordpresence.py
+                            chmod +x "$(brew --prefix)"/bin/jerrydiscordpresence.py
+                            ;;
+                        *MINGW*)
+                            curl -sL github.com/justchokingaround/jerry/raw/main/jerrydiscordpresence.py -o /usr/bin/jerrydiscordpresence.py
+                            chmod +x /usr/bin/jerrydiscordpresence.py
+                            ;;
+                        *)
+                            sudo curl -sL github.com/justchokingaround/jerry/raw/main/jerrydiscordpresence.py -o /usr/local/bin/jerrydiscordpresence.py
+                            sudo chmod +x /usr/local/bin/jerrydiscordpresence.py
+                            ;;
+                    esac
+                    ;;
+                *) exit 0 ;;
+            esac
+        fi
+
+        update=$(curl -s "https://raw.githubusercontent.com/justchokingaround/jerry/main/jerrydiscordpresence.py" || exit 1)
+        update="$(printf '%s\n' "$update" | diff -u "$presence_script_path" -)"
+        if [ -n "$update" ]; then
+            if [ "$use_external_menu" = 0 ] || [ "$use_external_menu" = "false" ]; then
+                printf "%s" "$2" && read -r answer
+            else
+                answer=$(printf "Yes\nNo" | launcher "$2")
+            fi
+            case "$answer" in
+                "Yes" | "yes" | "y" | "Y")
+                    if printf '%s\n' "$update" | patch "$presence_script_path" -; then
+                        send_notification "Script has been updated!"
+                    else
+                        send_notification "Can't update for some reason!"
+                    fi
+                    ;;
+                *) exit 0 ;;
+            esac
+        fi
+    fi
+
 }
 
 get_input() {
@@ -982,14 +1056,14 @@ play_video() {
             if [ -n "$subs_links" ]; then
                 send_notification "$title" "4000" "$images_cache_dir/  $title $progress|$episodes_total episodes $media_id.jpg" "$displayed_episode_title"
                 if [ "$discord_presence" = "true" ]; then
-                    eval "$presence_script_path" \"mpv\" \"${title}\" \"$((progress + 1))\" \"${video_link}\" \"${subs_links}\" \"${opts}\"
+                    eval "$presence_script_path" \"mpv\" \"${title}\" \"$((progress + 1))\" \"${video_link}\" \"${subs_links}\" \"${opts}\" 2>&1 | tee $tmp_position
                 else
                     mpv "$video_link" "$opts" "$subs_arg" "$subs_links" --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
                 fi
             else
                 send_notification "$title" "4000" "$images_cache_dir/  $title $progress|$episodes_total episodes $media_id.jpg" "$displayed_episode_title"
                 if [ "$discord_presence" = "true" ]; then
-                    eval "$presence_script_path" \"mpv\" \"${title}\" \"$((progress + 1))\" \"${video_link}\" \"\" \"${opts}\"
+                    eval "$presence_script_path" \"mpv\" \"${title}\" \"$((progress + 1))\" \"${video_link}\" \"\" \"${opts}\" 2>&1 | tee $tmp_position
                 else
                     mpv "$video_link" "$opts" --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
                 fi
@@ -1197,6 +1271,8 @@ main() {
 
 configuration
 query=""
+# check for update
+check_update "A new update is out. Would you like to update jerry? [Y/n] " "A new update for the presence script is out. Would you like to update jerrydiscordpresence.py? [Y/n] "
 # TODO: add an argument for video_providers
 while [ $# -gt 0 ]; do
     case "$1" in
