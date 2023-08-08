@@ -213,15 +213,6 @@ check_update() {
     if [ "$discord_presence" = "true" ]; then
         if [ ! -s "$presence_script_path" ]; then
             if [ "$use_external_menu" = 0 ] || [ "$use_external_menu" = "false" ]; then
-                printf "Install python dependencies?" && read -r answer
-            else
-                answer=$(printf "Yes\nNo" | launcher "Install python dependencies?")
-            fi
-            case "$answer" in
-                "Yes" | "yes" | "y" | "Y") pip install pypresence re httpx ;;
-            esac
-
-            if [ "$use_external_menu" = 0 ] || [ "$use_external_menu" = "false" ]; then
                 printf "No presence script found in path, would you like to download the default one?" && read -r answer
             else
                 answer=$(printf "Yes\nNo" | launcher "No presence script found in path, would you like to download the default one?")
