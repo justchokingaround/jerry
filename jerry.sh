@@ -63,7 +63,7 @@ usage() {
       Allows user to watch anime in dub
     -e, --edit
       Edit config file using an editor defined with jerry_editor in the config (\$EDITOR by default). If a config file does not exist, creates one with a default configuration
-		-d, --discord
+		--d, --discord
       Display currently watching anime in Discord Rich Presence (jerrydiscordpresence.py is required for this, check the readme for instructions on how to install it)
     -h, --help
       Show this help message and exit
@@ -211,7 +211,7 @@ check_update() {
     fi
 
     if [ "$discord_presence" = "true" ]; then
-        if [ ! -f "$(command -v "$presence_script_path")" ]; then
+        if [ ! -s "$presence_script_path" ]; then
             if [ "$use_external_menu" = 0 ] || [ "$use_external_menu" = "false" ]; then
                 printf "No presence script found in path, would you like to download the default one?" && read -r answer
             else
@@ -432,8 +432,7 @@ get_anime_from_list() {
 search_anime_anilist() {
     anime_list=$(curl -s -X POST "$anilist_base" \
         -H 'Content-Type: application/json' \
-        -d "{\"query\":\"query(\$page:Int = 1 \$id:Int \$type:MediaType \$isAdult:Boolean = false \$search:String \$format:[MediaFormat]\$status:MediaStatus \$countryOfOrigin:CountryCode \$source:MediaSource \$season:MediaSeason \$seasonYear:Int \$year:String \$onList:Boolean \$yearLesser:FuzzyDateInt \$yearGreater:FuzzyDateInt \$episodeLesser:Int \$episodeGreater:Int \$durationLesser:Int \$durationGreater:Int \$chapterLesser:Int \$chapterGreater:Int \$volumeLesser:Int \$volumeGreater:Int \$licensedBy:[Int]\$isLicensed:Boolean \$genres:[String]\$excludedGenres:[String]\$tags:[String]\$excludedTags:[String]\$minimumTagRank:Int \$sort:[MediaSort]=[POPULARITY_DESC,SCORE_DESC]){Page(page:\$page,perPage:20){pageInfo{total perPage currentPage lastPage hasNextPage}media(id:\$id type:\$type season:\$season format_in:\$format status:\$status countryOfOrigin:\$countryOfOrigin source:\$source search:\$search onList:\$onList seasonYear:\$seasonYear startDate_like:\$year startDate_lesser:\$yearLesser startDate_greater:\$yearGreater episodes_lesser:\$episodeLesser episodes_greater:\$episodeGreater duration_lesser:\$durationLesser duration_greater:\$durationGreater chapters_lesser:\$chapterLesser chapters_greater:\$chapterGreater volumes_lesser:\$volumeLesser volumes_greater:\$volumeGreater licensedById_in:\$licensedBy isLicensed:\$isLicensed genre_in:\$genres genre_not_in:\$excludedGenres tag_in:\$tags tag_not_in:\$excludedTags minimumTagRank:\$minimumTagRank sort:\$sort isAdult:\$isAdult){id title{userPreferred}coverImage{extraLarge large color}startDate{year month day}endDate{year month day}bannerImage season seasonYear description type format status(version:2)episodes duration chapters volumes genres isAdult averageScore popularity nextAiringEpisode{airingAt timeUntilAiring episode}mediaListEntry{id status}studios(isMain:true){edges{isMain node{id name}}}}}}\",\"variables\":{\"page\":1,\"type\":\"ANIME\",\"sort\":\"SEARCH_MATCH\",\"search\":\"$1\"}}" |
-        tr "\[\]" "\n" | $sed -nE "s@.*\"id\":([0-9]*),.*\"userPreferred\":\"(.*)\"\},\"coverImage\":.*\"extraLarge\":\"([^\"]*)\".*\"episodes\":([^,]*),.*@\3\t\1\t\2 \4 episodes@p" | $sed 's/\\\//\//g;s/null/?/')
+        -d "{\"query\":\"query(\$page:Int = 1 \$id:Int \$type:MediaType \$isAdult:Boolean = false \$search:String \$format:[MediaFormat]\$status:MediaStatus \$countryOfOrigin:CountryCode \$source:MediaSource \$season:MediaSeason \$seasonYear:Int \$year:String \$onList:Boolean \$yearLesser:FuzzyDateInt \$yearGreater:FuzzyDateInt \$episodeLesser:Int \$episodeGreater:Int \$durationLesser:Int \$durationGreater:Int \$chapterLesser:Int \$chapterGreater:Int \$volumeLesser:Int \$volumeGreater:Int \$licensedBy:[Int]\$isLicensed:Boolean \$genres:[String]\$excludedGenres:[String]\$tags:[String]\$excludedTags:[String]\$minimumTagRank:Int \$sort:[MediaSort]=[POPULARITY_DESC,SCORE_DESC]){Page(page:\$page,perPage:20){pageInfo{total perPage currentPage lastPage hasNextPage}media(id:\$id type:\$type season:\$season format_in:\$format status:\$status countryOfOrigin:\$countryOfOrigin source:\$source search:\$search onList:\$onList seasonYear:\$seasonYear startDate_like:\$year startDate_lesser:\$yearLesser startDate_greater:\$yearGreater episodes_lesser:\$episodeLesser episodes_greater:\$episodeGreater duration_lesser:\$durationLesser duration_greater:\$durationGreater chapters_lesser:\$chapterLesser chapters_greater:\$chapterGreater volumes_lesser:\$volumeLesser volumes_greater:\$volumeGreater licensedById_in:\$licensedBy isLicensed:\$isLicensed genre_in:\$genres genre_not_in:\$excludedGenres tag_in:\$tags tag_not_in:\$excludedTags minimumTagRank:\$minimumTagRank sort:\$sort isAdult:\$isAdult){id title{userPreferred}coverImage{extraLarge large color}startDate{year month day}endDate{year month day}bannerImage season seasonYear description type format status(version:2)episodes duration chapters volumes genres isAdult averageScore popularity nextAiringEpisode{airingAt timeUntilAiring episode}mediaListEntry{id status}studios(isMain:true){edges{isMain node{id name}}}}}}\",\"variables\":{\"page\":1,\"type\":\"ANIME\",\"sort\":\"SEARCH_MATCH\",\"search\":\"$1\"}}" | sed "s@edges@\n@g" | $sed -nE "s@.*\"id\":([0-9]*),.*\"userPreferred\":\"(.*)\"\},\"coverImage\":.*\"extraLarge\":\"([^\"]*)\".*\"episode([\"]*)s*[\"]*:([0-9]*).*@\3\t\1\t\2 \5 episodes\4@p" | $sed 's/\\\//\//g;s/\"/(releasing)/')
 
     if [ "$use_external_menu" = 1 ]; then
         case "$image_preview" in
@@ -442,7 +441,7 @@ search_anime_anilist() {
                 select_desktop_entry ""
                 [ -z "$choice" ] && exit 1
                 media_id=$(printf "%s" "$choice" | cut -d\  -f1)
-                title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?]* episodes@\1@p")
+                title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?]* episodes.*@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
                 ;;
@@ -470,20 +469,23 @@ search_anime_anilist() {
             *)
                 choice=$(printf "%s" "$anime_list" | launcher "Choose anime: " "3")
                 media_id=$(printf "%s" "$choice" | cut -f2)
-                title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* episodes@\1@p")
-                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes@\1@p")
+                title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* episodes.*@\1@p")
+                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
-                [ -z "$episodes_total" ] && episodes_total=9999
                 ;;
         esac
     fi
     [ -z "$title" ] && exit 0
 
     if [ -n "$no_anilist" ]; then
-        episodes_total=$(curl -s -X POST "$anilist_base" \
-            -H 'Content-Type: application/json' \
-            -d "{\"query\":\"query(\$page:Int = 1 \$id:Int \$type:MediaType \$isAdult:Boolean = false \$search:String \$format:[MediaFormat]\$status:MediaStatus \$countryOfOrigin:CountryCode \$source:MediaSource \$season:MediaSeason \$seasonYear:Int \$year:String \$onList:Boolean \$yearLesser:FuzzyDateInt \$yearGreater:FuzzyDateInt \$episodeLesser:Int \$episodeGreater:Int \$durationLesser:Int \$durationGreater:Int \$chapterLesser:Int \$chapterGreater:Int \$volumeLesser:Int \$volumeGreater:Int \$licensedBy:[Int]\$isLicensed:Boolean \$genres:[String]\$excludedGenres:[String]\$tags:[String]\$excludedTags:[String]\$minimumTagRank:Int \$sort:[MediaSort]=[POPULARITY_DESC,SCORE_DESC]){Page(page:\$page,perPage:20){pageInfo{total perPage currentPage lastPage hasNextPage}media(id:\$id type:\$type season:\$season format_in:\$format status:\$status countryOfOrigin:\$countryOfOrigin source:\$source search:\$search onList:\$onList seasonYear:\$seasonYear startDate_like:\$year startDate_lesser:\$yearLesser startDate_greater:\$yearGreater episodes_lesser:\$episodeLesser episodes_greater:\$episodeGreater duration_lesser:\$durationLesser duration_greater:\$durationGreater chapters_lesser:\$chapterLesser chapters_greater:\$chapterGreater volumes_lesser:\$volumeLesser volumes_greater:\$volumeGreater licensedById_in:\$licensedBy isLicensed:\$isLicensed genre_in:\$genres genre_not_in:\$excludedGenres tag_in:\$tags tag_not_in:\$excludedTags minimumTagRank:\$minimumTagRank sort:\$sort isAdult:\$isAdult){id title{userPreferred}coverImage{extraLarge large color}startDate{year month day}endDate{year month day}bannerImage season seasonYear description type format status(version:2)episodes duration chapters volumes genres isAdult averageScore popularity nextAiringEpisode{airingAt timeUntilAiring episode}mediaListEntry{id status}studios(isMain:true){edges{isMain node{id name}}}}}}\",\"variables\":{\"page\":1,\"type\":\"ANIME\",\"sort\":\"SEARCH_MATCH\",\"search\":\"$1\"}}" |
-            tr "\[\]" "\n" | $sed -nE "s@.*\"id\":${media_id},.*\"episodes\":([0-9]*)\,\".*@\1@p")
+        episodes_total=$(curl -s -X POST "https://graphql.anilist.co" -A "uwu" -H "Accept: application/json" -H "Content-Type: application/json" --data-raw "{\"query\":\"query media(\$id:Int,\$type:MediaType,\$isAdult:Boolean){Media(id:\$id,type:\$type,isAdult:\$isAdult){episodes nextAiringEpisode{episode}}}\",\"variables\":{\"id\":\"${media_id}\",\"type\":\"ANIME\",\"isAdult\":false}}" | sed -nE "s@.*episode([s]{0,1})\":([0-9]+).*@\1\2@p")
+        s="$(echo "$episodes_total" | sed -nE "s@s([0-9]*)@\1@p")"
+        if [ -n "$s" ]; then
+            episodes_total=$s
+        else
+            episodes_total=$((episodes_total - 1))
+        fi
+
         [ -n "$progress" ] && return
         if [ "$episodes_total" = 1 ]; then
             progress=0
@@ -952,8 +954,9 @@ get_chapter_info() {
     manga_provider="mangadex"
     case "$manga_provider" in
         mangadex)
-            mangadex_id=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/manga/${media_id}.json" | tr -d "\n" | $sed -nE "s@.*\"Mangadex\":[[:space:]{]*\"([^\"]*)\".*@\1@p")
-            chapter_info=$(curl -s "https://api.mangadex.org/manga/${mangadex_id}/feed?limit=164&translatedLanguage[]=en" | $sed "s/}]},/\n/g" |
+            # TODO: fix this
+            mangadex_id=$(curl -s "https://raw.githubusercontent.com/MALSync/MAL-Sync-Backup/master/data/anilist/manga/$media_id.json" | tr -d "\n" | $sed -nE "s@.*\"Mangadex\":[[:space:]{]*\"([^\"]*)\".*@\1@p")
+            chapter_info=$(curl -s "https://api.mangadex.org/manga/$mangadex_id/feed?limit=164&translatedLanguage[]=en" | $sed "s/}]},/\n/g" |
                 $sed -nE "s@.*\"id\":\"([^\"]*)\".*\"chapter\":\"$((progress + 1))\",\"title\":\"([^\"]*)\".*@\1\t\2@p" | head -1)
             ;;
     esac
@@ -1164,6 +1167,35 @@ read_manga_choice() {
     [ "$score_on_completion" = true ] && update_score "MANGA" "immediate"
 }
 
+binge() {
+    while :; do
+        if [ "$1" = "ANIME" ]; then
+            watch_anime_choice
+            [ $((progress + 1)) = "$episodes_total" ] && break
+            send_notification "Please only select Yes if you have finished watching the episode" "5000"
+            binge_watching=$(printf "Yes\nNo" | launcher "Do you want to keep binge watching? [Y/n] ")
+            case $binge_watching in
+                "Yes" | "yes" | "y" | "Y")
+                    progress=$((progress + 1))
+                    resume_from=""
+                    continue
+                    ;;
+                "No" | "no" | "n" | "N") break ;;
+            esac
+            sleep 1
+        elif [ "$1" = "MANGA" ]; then
+            read_manga_choice
+            [ $((progress + 1)) = "$chapters_total" ] && break
+            case $completed_chapter in
+                "No" | "no" | "n" | "N") break ;;
+            esac
+            sleep 1
+        else
+            exit 1
+        fi
+    done
+}
+
 main() {
     if [ -z "$no_anilist" ]; then
         check_credentials
@@ -1171,39 +1203,18 @@ main() {
             exit 1
         fi
         [ -n "$query" ] && mode_choice="Watch New Anime"
-        [ -z "$mode_choice" ] && mode_choice=$(printf "Watch Anime\nRead Manga\nBinge Watch Anime\nBinge Read Manga\nUpdate (Episodes, Status, Score)\nInfo\nWatch New Anime\nRead New Manga" | launcher "Choose an option: ")
+        [ -z "$mode_choice" ] && mode_choice=$(printf "Watch Anime\nRead Manga\nUpdate (Episodes, Status, Score)\nInfo\nWatch New Anime\nRead New Manga" | launcher "Choose an option: ")
     else
         # TODO: implement manga stuff for no_anilist
         [ -n "$query" ] && mode_choice="Watch Anime"
-        [ -z "$mode_choice" ] && mode_choice=$(printf "Resume from History\nWatch Anime\nBinge Watch Anime" | launcher "Choose an option: ")
+        [ -z "$mode_choice" ] && mode_choice=$(printf "Resume from History\nWatch Anime" | launcher "Choose an option: ")
     fi
     case "$mode_choice" in
-        "Watch Anime") watch_anime_choice && exit 0 ;;
-        "Read Manga") read_manga_choice && exit 0 ;;
-        "Binge Watch Anime")
-            while :; do
-                watch_anime_choice
-                send_notification "Please only select Yes if you have finished watching the episode" "5000"
-                binge_watching=$(printf "Yes\nNo" | launcher "Do you want to keep binge watching? [Y/n] ")
-                case $binge_watching in
-                    "Yes" | "yes" | "y" | "Y")
-                        progress=$((progress + 1))
-                        resume_from=""
-                        continue
-                        ;;
-                    "No" | "no" | "n" | "N") break ;;
-                esac
-                sleep 1
-            done
+        "Watch Anime")
+            binge "ANIME"
             ;;
-        "Binge Read Manga")
-            while :; do
-                read_manga_choice
-                case $completed_chapter in
-                    "No" | "no" | "n" | "N") break ;;
-                esac
-                sleep 1
-            done
+        "Read Manga")
+            binge "MANGA"
             ;;
         "Update (Episodes, Status, Score)")
             update_choice=$(printf "Change Episodes Watched\nChange Chapters Read\nChange Status\nChange Score" | launcher "Choose an option: ")
@@ -1238,7 +1249,7 @@ main() {
             search_anime_anilist "$query"
             [ -z "$progress" ] && progress=0
             [ "$json_output" = true ] || send_notification "Disclaimer" "5000" "" "You need to complete the 1st episode to update your progress"
-            watch_anime
+            binge "ANIME"
             ;;
         "Read New Manga")
             [ -z "$query" ] && get_input "Search manga: "
@@ -1246,7 +1257,7 @@ main() {
             search_manga_anilist "$query"
             [ -z "$progress" ] && progress=0
             [ "$json_output" = true ] || send_notification "Disclaimer" "5000" "" "You need to complete the 1st chapter to update your progress"
-            read_manga
+            binge "MANGA"
             ;;
         "Resume from History")
             history_choice=$($sed -n "1h;1!{x;H;};\${g;p;}" "$history_file" | nl -w 1 | nth "Choose an entry: ")
@@ -1257,7 +1268,7 @@ main() {
             resume_from=$(printf "%s" "$history_choice" | cut -f3)
             title=$(printf "%s" "$history_choice" | cut -f4)
             [ -z "$media_id" ] && exit 1
-            watch_anime
+            binge "ANIME"
             ;;
     esac
 }
