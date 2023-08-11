@@ -63,7 +63,7 @@ usage() {
       Allows user to watch anime in dub
     -e, --edit
       Edit config file using an editor defined with jerry_editor in the config (\$EDITOR by default). If a config file does not exist, creates one with a default configuration
-		--d, --discord
+		-d, --discord
       Display currently watching anime in Discord Rich Presence (jerrydiscordpresence.py is required for this, check the readme for instructions on how to install it)
     -h, --help
       Show this help message and exit
@@ -211,7 +211,7 @@ check_update() {
     fi
 
     if [ "$discord_presence" = "true" ]; then
-        if [ ! -s "$presence_script_path" ]; then
+        if [ ! -f "$(command -v "$presence_script_path")" ]; then
             if [ "$use_external_menu" = 0 ] || [ "$use_external_menu" = "false" ]; then
                 printf "No presence script found in path, would you like to download the default one?" && read -r answer
             else
@@ -618,8 +618,8 @@ search_manga_anilist() {
                 select_desktop_entry ""
                 [ -z "$choice" ] && exit 1
                 media_id=$(printf "%s" "$choice" | cut -d\  -f1)
-                title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?]* chapters@\1@p")
-                chapters_total=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9?]*) chapters@\1@p")
+                title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?]* chapters.*@\1@p")
+                chapters_total=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9?]*) chapters.*@\1@p")
                 ;;
             *)
                 tmp_manga_list=$(printf "%s" "$manga_list" | $sed -nE "s@(.*\.[jpneg]*)[[:space:]]*([0-9]*)[[:space:]]*(.*)@\3\t\2\t\1@p")
@@ -643,9 +643,9 @@ search_manga_anilist() {
             *)
                 choice=$(printf "%s" "$manga_list" | launcher "Choose manga: " "3")
                 media_id=$(printf "%s" "$choice" | cut -f2)
-                title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* chapters@\1@p")
-                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* chapters@\1@p")
-                chapters_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) chapters@\1@p")
+                title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* chapters.*@\1@p")
+                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* chapters.*@\1@p")
+                chapters_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) chapters.*@\1@p")
                 ;;
         esac
     fi
@@ -954,8 +954,7 @@ get_chapter_info() {
     manga_provider="mangadex"
     case "$manga_provider" in
         mangadex)
-            # TODO: fix this
-            mangadex_id=$(curl -s "https://raw.githubusercontent.com/MALSync/MAL-Sync-Backup/master/data/anilist/manga/$media_id.json" | tr -d "\n" | $sed -nE "s@.*\"Mangadex\":[[:space:]{]*\"([^\"]*)\".*@\1@p")
+            mangadex_id=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/manga/${media_id}.json" | tr -d "\n" | $sed -nE "s@.*\"Mangadex\":[[:space:]{]*\"([^\"]*)\".*@\1@p")
             chapter_info=$(curl -s "https://api.mangadex.org/manga/$mangadex_id/feed?limit=164&translatedLanguage[]=en" | $sed "s/}]},/\n/g" |
                 $sed -nE "s@.*\"id\":\"([^\"]*)\".*\"chapter\":\"$((progress + 1))\",\"title\":\"([^\"]*)\".*@\1\t\2@p" | head -1)
             ;;
