@@ -316,7 +316,7 @@ nine_anime_helper() {
 
 nine_anime_extractor() {
     futoken=$(curl -s "vidstream.pro/futoken")
-    curl -s "$base_helper_url/$1?query=$2&apikey=jerry" -d "query=${2}&futoken=${futoken}" | sed -nE "s@.*\"$3\":\"([^\"]*)\".*@\1@p"
+    curl -s "$base_helper_url/$1?query=$2&apikey=jerry" -d "query=${2}&futoken=${futoken}" | $sed -nE "s@.*\"$3\":\"([^\"]*)\".*@\1@p"
 }
 
 download_images() {
@@ -375,7 +375,7 @@ get_anime_from_list() {
     anime_list=$(curl -s -X POST "$anilist_base" \
         -H 'Content-Type: application/json' \
         -H "Authorization: Bearer $access_token" \
-	-d "{\"query\":\"query(\$userId:Int,\$userName:String,\$type:MediaType){MediaListCollection(userId:\$userId,userName:\$userName,type:\$type){lists{name isCustomList isCompletedList:isSplitCompletedList entries{...mediaListEntry}}user{id name avatar{large}mediaListOptions{scoreFormat rowOrder animeList{sectionOrder customLists splitCompletedSectionByFormat theme}mangaList{sectionOrder customLists splitCompletedSectionByFormat theme}}}}}fragment mediaListEntry on MediaList{id mediaId status score progress progressVolumes repeat priority private hiddenFromStatusLists customLists advancedScores notes updatedAt startedAt{year month day}completedAt{year month day}media{id title{userPreferred romaji english native}coverImage{extraLarge large}type format status(version:2)episodes volumes chapters averageScore popularity isAdult countryOfOrigin genres bannerImage nextAiringEpisode{airingAt timeUntilAiring episode} startDate{year month day}}}\",\"variables\":{\"userId\":$user_id,\"type\":\"ANIME\"}}" | sed "s@},{@\n@g" | sed -nE "s@.*\"mediaId\":([0-9]*),\"status\":\"$1\",\"score\":(.*),\"progress\":([0-9]*),.*\"userPreferred\":\"([^\"]*)\".*\"coverImage\":\{\"extraLarge\":\"([^\"]*)\".*\"episode([\"]*)s*[\"]*:([0-9]*).*@\5\t\1\t\4 \3|\7 episodes \6 \[\2\]@p" | sed 's/\\\//\//g;s/\"/(releasing)/')
+	-d "{\"query\":\"query(\$userId:Int,\$userName:String,\$type:MediaType){MediaListCollection(userId:\$userId,userName:\$userName,type:\$type){lists{name isCustomList isCompletedList:isSplitCompletedList entries{...mediaListEntry}}user{id name avatar{large}mediaListOptions{scoreFormat rowOrder animeList{sectionOrder customLists splitCompletedSectionByFormat theme}mangaList{sectionOrder customLists splitCompletedSectionByFormat theme}}}}}fragment mediaListEntry on MediaList{id mediaId status score progress progressVolumes repeat priority private hiddenFromStatusLists customLists advancedScores notes updatedAt startedAt{year month day}completedAt{year month day}media{id title{userPreferred romaji english native}coverImage{extraLarge large}type format status(version:2)episodes volumes chapters averageScore popularity isAdult countryOfOrigin genres bannerImage nextAiringEpisode{airingAt timeUntilAiring episode} startDate{year month day}}}\",\"variables\":{\"userId\":$user_id,\"type\":\"ANIME\"}}" | $sed "s@},{@\n@g" | $sed -nE "s@.*\"mediaId\":([0-9]*),\"status\":\"$1\",\"score\":(.*),\"progress\":([0-9]*),.*\"userPreferred\":\"([^\"]*)\".*\"coverImage\":\{\"extraLarge\":\"([^\"]*)\".*\"episode([\"]*)s*[\"]*:([0-9]*).*@\5\t\1\t\4 \3|\7 episodes \6 \[\2\]@p" | $sed 's/\\\//\//g;s/\"/(releasing)/')
     if [ "$use_external_menu" = 1 ]; then
         case "$image_preview" in
             "true" | 1)
@@ -431,7 +431,7 @@ get_anime_from_list() {
 search_anime_anilist() {
     anime_list=$(curl -s -X POST "$anilist_base" \
         -H 'Content-Type: application/json' \
-        -d "{\"query\":\"query(\$page:Int = 1 \$id:Int \$type:MediaType \$isAdult:Boolean = false \$search:String \$format:[MediaFormat]\$status:MediaStatus \$countryOfOrigin:CountryCode \$source:MediaSource \$season:MediaSeason \$seasonYear:Int \$year:String \$onList:Boolean \$yearLesser:FuzzyDateInt \$yearGreater:FuzzyDateInt \$episodeLesser:Int \$episodeGreater:Int \$durationLesser:Int \$durationGreater:Int \$chapterLesser:Int \$chapterGreater:Int \$volumeLesser:Int \$volumeGreater:Int \$licensedBy:[Int]\$isLicensed:Boolean \$genres:[String]\$excludedGenres:[String]\$tags:[String]\$excludedTags:[String]\$minimumTagRank:Int \$sort:[MediaSort]=[POPULARITY_DESC,SCORE_DESC]){Page(page:\$page,perPage:20){pageInfo{total perPage currentPage lastPage hasNextPage}media(id:\$id type:\$type season:\$season format_in:\$format status:\$status countryOfOrigin:\$countryOfOrigin source:\$source search:\$search onList:\$onList seasonYear:\$seasonYear startDate_like:\$year startDate_lesser:\$yearLesser startDate_greater:\$yearGreater episodes_lesser:\$episodeLesser episodes_greater:\$episodeGreater duration_lesser:\$durationLesser duration_greater:\$durationGreater chapters_lesser:\$chapterLesser chapters_greater:\$chapterGreater volumes_lesser:\$volumeLesser volumes_greater:\$volumeGreater licensedById_in:\$licensedBy isLicensed:\$isLicensed genre_in:\$genres genre_not_in:\$excludedGenres tag_in:\$tags tag_not_in:\$excludedTags minimumTagRank:\$minimumTagRank sort:\$sort isAdult:\$isAdult){id title{userPreferred}coverImage{extraLarge large color}startDate{year month day}endDate{year month day}bannerImage season seasonYear description type format status(version:2)episodes duration chapters volumes genres isAdult averageScore popularity nextAiringEpisode{airingAt timeUntilAiring episode}mediaListEntry{id status}studios(isMain:true){edges{isMain node{id name}}}}}}\",\"variables\":{\"page\":1,\"type\":\"ANIME\",\"sort\":\"SEARCH_MATCH\",\"search\":\"$1\"}}" | sed "s@edges@\n@g" | $sed -nE "s@.*\"id\":([0-9]*),.*\"userPreferred\":\"(.*)\"\},\"coverImage\":.*\"extraLarge\":\"([^\"]*)\".*\"episode([\"]*)s*[\"]*:([0-9]*).*@\3\t\1\t\2 \5 episodes \4@p" | $sed 's/\\\//\//g;s/\"/(releasing)/')
+        -d "{\"query\":\"query(\$page:Int = 1 \$id:Int \$type:MediaType \$isAdult:Boolean = false \$search:String \$format:[MediaFormat]\$status:MediaStatus \$countryOfOrigin:CountryCode \$source:MediaSource \$season:MediaSeason \$seasonYear:Int \$year:String \$onList:Boolean \$yearLesser:FuzzyDateInt \$yearGreater:FuzzyDateInt \$episodeLesser:Int \$episodeGreater:Int \$durationLesser:Int \$durationGreater:Int \$chapterLesser:Int \$chapterGreater:Int \$volumeLesser:Int \$volumeGreater:Int \$licensedBy:[Int]\$isLicensed:Boolean \$genres:[String]\$excludedGenres:[String]\$tags:[String]\$excludedTags:[String]\$minimumTagRank:Int \$sort:[MediaSort]=[POPULARITY_DESC,SCORE_DESC]){Page(page:\$page,perPage:20){pageInfo{total perPage currentPage lastPage hasNextPage}media(id:\$id type:\$type season:\$season format_in:\$format status:\$status countryOfOrigin:\$countryOfOrigin source:\$source search:\$search onList:\$onList seasonYear:\$seasonYear startDate_like:\$year startDate_lesser:\$yearLesser startDate_greater:\$yearGreater episodes_lesser:\$episodeLesser episodes_greater:\$episodeGreater duration_lesser:\$durationLesser duration_greater:\$durationGreater chapters_lesser:\$chapterLesser chapters_greater:\$chapterGreater volumes_lesser:\$volumeLesser volumes_greater:\$volumeGreater licensedById_in:\$licensedBy isLicensed:\$isLicensed genre_in:\$genres genre_not_in:\$excludedGenres tag_in:\$tags tag_not_in:\$excludedTags minimumTagRank:\$minimumTagRank sort:\$sort isAdult:\$isAdult){id title{userPreferred}coverImage{extraLarge large color}startDate{year month day}endDate{year month day}bannerImage season seasonYear description type format status(version:2)episodes duration chapters volumes genres isAdult averageScore popularity nextAiringEpisode{airingAt timeUntilAiring episode}mediaListEntry{id status}studios(isMain:true){edges{isMain node{id name}}}}}}\",\"variables\":{\"page\":1,\"type\":\"ANIME\",\"sort\":\"SEARCH_MATCH\",\"search\":\"$1\"}}" | $sed "s@edges@\n@g" | $sed -nE "s@.*\"id\":([0-9]*),.*\"userPreferred\":\"(.*)\"\},\"coverImage\":.*\"extraLarge\":\"([^\"]*)\".*\"episode([\"]*)s*[\"]*:([0-9]*).*@\3\t\1\t\2 \5 episodes \4@p" | $sed 's/\\\//\//g;s/\"/(releasing)/')
 
     if [ "$use_external_menu" = 1 ]; then
         case "$image_preview" in
@@ -477,8 +477,8 @@ search_anime_anilist() {
     [ -z "$title" ] && exit 0
 
     if [ -n "$no_anilist" ]; then
-        episodes_total=$(curl -s -X POST "https://graphql.anilist.co" -A "uwu" -H "Accept: application/json" -H "Content-Type: application/json" --data-raw "{\"query\":\"query media(\$id:Int,\$type:MediaType,\$isAdult:Boolean){Media(id:\$id,type:\$type,isAdult:\$isAdult){episodes nextAiringEpisode{episode}}}\",\"variables\":{\"id\":\"${media_id}\",\"type\":\"ANIME\",\"isAdult\":false}}" | sed -nE "s@.*episode([s]{0,1})\":([0-9]+).*@\1\2@p")
-        s="$(echo "$episodes_total" | sed -nE "s@s([0-9]*)@\1@p")"
+        episodes_total=$(curl -s -X POST "https://graphql.anilist.co" -A "uwu" -H "Accept: application/json" -H "Content-Type: application/json" --data-raw "{\"query\":\"query media(\$id:Int,\$type:MediaType,\$isAdult:Boolean){Media(id:\$id,type:\$type,isAdult:\$isAdult){episodes nextAiringEpisode{episode}}}\",\"variables\":{\"id\":\"${media_id}\",\"type\":\"ANIME\",\"isAdult\":false}}" | $sed -nE "s@.*episode([s]{0,1})\":([0-9]+).*@\1\2@p")
+        s="$(echo "$episodes_total" | $sed -nE "s@s([0-9]*)@\1@p")"
         if [ -n "$s" ]; then
             episodes_total=$s
         else
@@ -706,6 +706,7 @@ update_status() {
 }
 
 update_score() {
+    [ "$percentage_progress" -lt 85 ] && return
     if [ "$2" = "immediate" ]; then
         [ "$1" = "ANIME" ] && total="$episodes_total"
         [ "$1" = "MANGA" ] && total="$chapters_total"
@@ -772,12 +773,12 @@ get_episode_info() {
     case "$provider" in
         aniwatch)
             aniwatch_id=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/anime/${media_id}.json" |
-                tr -d '\n ' | tr '}' '\n' | sed -nE "s@.*\"Zoro\".*\"url\":\".*-([0-9]*)\".*@\1@p")
+                tr -d '\n ' | tr '}' '\n' | $sed -nE "s@.*\"Zoro\".*\"url\":\".*-([0-9]*)\".*@\1@p")
             episode_info=$(curl -s "https://aniwatch.to/ajax/v2/episode/list/${aniwatch_id}" | $sed -e "s/</\n/g" -e "s/\\\\//g" | $sed -nE "s_.*a title=\"([^\"]*)\".*data-id=\"([0-9]*)\".*_\2\t\1_p" | $sed -n "$((progress + 1))p")
             ;;
         yugen)
             href=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/anime/${media_id}.json" |
-                tr -d '\n' | tr '}' '\n' | sed -nE 's@.*"YugenAnime".*"url": *"([^"]*)".*@\1@p')
+                tr -d '\n' | tr '}' '\n' | $sed -nE 's@.*"YugenAnime".*"url": *"([^"]*)".*@\1@p')
             tmp_episode_info=$(curl -s "${href}watch/" | $sed -nE "s@.*href=\"/([^\"]*)\" title=\"([^\"]*)\".*@\1\t\2@p" | $sed -n "$((progress + 1))p")
             tmp_href=$(printf "%s" "$tmp_episode_info" | cut -f1)
             ep_title=$(printf "%s" "$tmp_episode_info" | cut -f2)
@@ -789,7 +790,7 @@ get_episode_info() {
             ;;
         9anime)
             nineanime_href=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/anime/${media_id}.json" |
-                tr -d '\n ' | tr '}' '\n' | sed -nE "s@.*\"9anime\".*\"url\":\"([^\"]*)\".*@\1@p" | head -1 | sed "s/9anime\.../aniwave.to/")
+                tr -d '\n ' | tr '}' '\n' | $sed -nE "s@.*\"9anime\".*\"url\":\"([^\"]*)\".*@\1@p" | head -1 | $sed "s/9anime\.../aniwave.to/")
             data_id=$(curl -s "$nineanime_href" | $sed -nE "s@.*data-id=\"([0-9]*)\" data-url.*@\1@p")
 
             ep_list_vrf=$(nine_anime_helper "vrf" "$data_id" "url")
@@ -995,7 +996,7 @@ add_to_history() {
         else
             if [ -n "$history" ]; then
                 if [ $((progress + 1)) -eq "$episodes_total" ]; then
-                    sed -i "/^$media_id/d" "$history_file"
+                    $sed -i "/^$media_id/d" "$history_file"
                     send_notification "Completed" "" "" "$title"
                 else
                     $sed -i "s/^${media_id}\t[0-9/]*\t[0-9:]*/${media_id}\t$((progress + 2))\/${episodes_total}\t00:00:00/" "$history_file"
@@ -1011,10 +1012,8 @@ add_to_history() {
         [ -z "$no_anilist" ] && send_notification "Your progress has not been updated"
         if ! grep -q "^$media_id" "$history_file" 2>&1; then
             printf "%s\t%s/%s\t%s\t%s\n" "$media_id" "$((progress + 1))" "$episodes_total" "$stopped_at" "$title" >>"$history_file"
-            send_notification "Updated progress to $((progress + 1)) episodes watched"
         else
             $sed -i "s/^${media_id}\t[0-9/]*\t[0-9:]*/${media_id}\t$((progress + 1))\/${episodes_total}\t${stopped_at}/" "$history_file"
-            send_notification "Updated progress to $((progress + 1)) episodes watched"
         fi
         send_notification "Stopped at: $stopped_at" "5000"
     fi
@@ -1169,7 +1168,8 @@ binge() {
     while :; do
         if [ "$1" = "ANIME" ]; then
             watch_anime_choice
-            [ "$percentage_progress" -gt 85 ] && [ $((progress + 1)) = "$episodes_total" ] && break
+            [ "$percentage_progress" -lt 85 ] && break
+	    [ $((progress + 1)) = "$episodes_total" ] && break
             send_notification "Please only select Yes if you have finished watching the episode" "5000"
             binge_watching=$(printf "Yes\nNo" | launcher "Do you want to keep binge watching? [Y/n] ")
             case $binge_watching in
