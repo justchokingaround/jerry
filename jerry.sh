@@ -1208,12 +1208,8 @@ main() {
         [ -z "$mode_choice" ] && mode_choice=$(printf "Resume from History\nWatch Anime" | launcher "Choose an option: ")
     fi
     case "$mode_choice" in
-        "Watch Anime")
-            binge "ANIME"
-            ;;
-        "Read Manga")
-            binge "MANGA"
-            ;;
+        "Watch Anime") binge "ANIME" ;;
+        "Read Manga") binge "MANGA" ;;
         "Update (Episodes, Status, Score)")
             update_choice=$(printf "Change Episodes Watched\nChange Chapters Read\nChange Status\nChange Score" | launcher "Choose an option: ")
             case "$update_choice" in
