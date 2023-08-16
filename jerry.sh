@@ -478,12 +478,8 @@ search_anime_anilist() {
 
     if [ -n "$no_anilist" ]; then
         episodes_total=$(curl -s -X POST "https://graphql.anilist.co" -A "uwu" -H "Accept: application/json" -H "Content-Type: application/json" --data-raw "{\"query\":\"query media(\$id:Int,\$type:MediaType,\$isAdult:Boolean){Media(id:\$id,type:\$type,isAdult:\$isAdult){episodes nextAiringEpisode{episode}}}\",\"variables\":{\"id\":\"${media_id}\",\"type\":\"ANIME\",\"isAdult\":false}}" | $sed -nE "s@.*episode([s]{0,1})\":([0-9]+).*@\1\2@p")
-        s="$(echo "$episodes_total" | $sed -nE "s@s([0-9]*)@\1@p")"
-        if [ -n "$s" ]; then
-            episodes_total=$s
-        else
-            episodes_total=$((episodes_total - 1))
-        fi
+        numeric_part=$(printf "%s" "$episodes_total" | sed -nE "s@s([0-9]*)@\1@p")
+        [ -n "$numeric_part" ] && episodes_total=$numeric_part || episodes_total=$((episodes_total - 1))
 
         [ -n "$progress" ] && return
         if [ "$episodes_total" = 1 ]; then
