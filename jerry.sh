@@ -277,6 +277,18 @@ get_input() {
     fi
 }
 
+convert_hex() {
+  text="$(cat -)"
+  len=${#text}
+
+  for i in $(seq 0 $((len - 1))); do
+	  char=$(printf "%s" "$text" | cut -c "$((i + 1))")
+	  hex_val=$(printf "%02x" "'$char")
+	  printf "%s" "$hex_val"
+  done
+  printf "\n"
+}
+
 generate_desktop() {
     cat <<EOF
 [Desktop Entry]
@@ -789,7 +801,7 @@ get_episode_info() {
                 tr -d '\n ' | tr '}' '\n' | $sed -nE "s@.*\"9anime\".*\"url\":\"([^\"]*)\".*@\1@p" | head -1 | $sed "s/9anime\.../aniwave.to/")
             data_id=$(curl -s "$nineanime_href" | $sed -nE "s@.*data-id=\"([0-9]*)\" data-url.*@\1@p")
 
-            ep_list_vrf=$(nine_anime_helper "vrf" "$data_id" "url" | xxd -plain | tr -d '\n' | $sed 's/\(..\)/%\1/g')
+            ep_list_vrf=$(nine_anime_helper "vrf" "$data_id" "url" | convert_hex | tr -d '\n' | $sed 's/\(..\)/%\1/g')
             episode_info=$(curl -sL "https://aniwave.to/ajax/episode/list/$data_id?vrf=$ep_list_vrf" | $sed 's/<li/\n/g;s/\\//g' |
                 $sed -nE "s@.*data-ids=\"([^\"]*)\".*data-jp=\"[^\"]*\">([^<]*)<.*@\1\t\2@p" | $sed -n "$((progress + 1))p")
             [ -z "$episode_info" ] && episode_info=$(curl -sL "https://aniwave.to/ajax/episode/list/$data_id?vrf=$ep_list_vrf" | $sed 's/<li/\n/g;s/\\//g' |
@@ -912,14 +924,14 @@ get_json() {
             json_data=$(curl -s 'https://yugenanime.tv/api/embed/' -X POST -H 'X-Requested-With: XMLHttpRequest' --data-raw "id=$episode_id&ac=0")
             ;;
         9anime)
-            server_list_vrf=$(nine_anime_helper "vrf" "$episode_id" "url" | xxd -plain | tr -d '\n' | sed 's/\(..\)/%\1/g')
+            server_list_vrf=$(nine_anime_helper "vrf" "$episode_id" "url" | convert_hex | tr -d '\n' | sed 's/\(..\)/%\1/g')
 
             if [ "$dub" = true ]; then
                 provider_id=$(curl -sL "https://aniwave.to/ajax/server/list/$episode_id?vrf=$server_list_vrf" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-link-id=\"([^\"]*)\">$video_provider.*@\1@p" | tail -1)
-                provider_vrf=$(nine_anime_helper "vrf" "$provider_id" "url" | xxd -plain | tr -d '\n' | sed 's/\(..\)/%\1/g')
+                provider_vrf=$(nine_anime_helper "vrf" "$provider_id" "url" | convert_hex | tr -d '\n' | sed 's/\(..\)/%\1/g')
             else
                 provider_id=$(curl -sL "https://aniwave.to/ajax/server/list/$episode_id?vrf=$server_list_vrf" | $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-link-id=\"([^\"]*)\">$video_provider.*@\1@p" | head -1)
-                provider_vrf=$(nine_anime_helper "vrf" "$provider_id" "url" | xxd -plain | tr -d '\n' | sed 's/\(..\)/%\1/g')
+                provider_vrf=$(nine_anime_helper "vrf" "$provider_id" "url" | convert_hex | tr -d '\n' | sed 's/\(..\)/%\1/g')
             fi
 
             encrypted_provider_url=$(curl -sL "https://aniwave.to/ajax/server/$provider_id?vrf=$provider_vrf" | $sed "s/\\\//g" | $sed -nE "s@.*\{\"url\":\"([^\"]*)\".*@\1@p")
