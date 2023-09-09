@@ -66,13 +66,11 @@ while True:
         content = file.read()
     pattern = r'(\(Paused\)\s)?AV:\s([0-9:]*) / ([0-9:]*) \(([0-9]*)%\)'
     matches = re.findall(pattern, content)
-    small_image = "https://cdn-icons-png.flaticon.com/128/3669/3669483.png"
+    small_image = "https://images-ext-1.discordapp.net/external/dUSRf56flwFeOMFjafsUhIMMS_1Xs-ptjeDHo6TWn6c/%3Fquality%3Dlossless%26size%3D48/https/cdn.discordapp.com/emojis/1138835294506975262.png"
     if matches:
         if matches[-1][0] == "(Paused) ":
-            small_image = "https://cdn-icons-png.flaticon.com/128/3669/3669483.png"  # <- pause
             elapsed = matches[-1][1]
         else:
-            small_image = "https://cdn-icons-png.flaticon.com/128/5577/5577228.png"  # <- play
             elapsed = matches[-1][1]
         duration = matches[-1][2]
         position = f"{elapsed} / {duration}"
