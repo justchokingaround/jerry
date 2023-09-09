@@ -80,10 +80,12 @@ while True:
         position = "00:00:00"
 
     rpc_client.update(
-        details=anime_name,
+        details=media_title,
         state=position,
         large_image=media["posterImage"]["original"],
+        large_text=media_title,
         small_image=small_image,
+        small_text=f"Episode {episode_count}"
     )
 
     if process.poll() is not None:
