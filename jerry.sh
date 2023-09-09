@@ -86,7 +86,7 @@ usage() {
     -v, --version
       Show the script version
     -w, --website
-      Choose which website to get video links from (default: 9anime) (currently supported: 9anime, aniwatch and yugen)
+      Choose which website to get video links from (default: 9anime) (currently supported: 9anime, aniwatch, yugen and hdrezka)
 
     Note: 
       All arguments can be specified in the config file as well.
@@ -336,6 +336,28 @@ convert_to_pdf() {
     convert "$manga_dir/$title/chapter_$((progress + 1))"/* "$manga_dir/$title/chapter_$((progress + 1))/$title - Chapter $((progress + 1)).pdf" && wait
 }
 
+hdrezka_data_and_translation_id() {
+    data_id=$(printf "%s" "$episode_id" | sed -nE "s@[a-z]*/([0-9]*)-.*@\1@p")
+    case "$media_type" in
+        films)
+            default_translator_id=$(curl -s "https://hdrezka.website/${media_type}/$(printf "%s" "$episode_id" | tr '=' '/').html" -A "uwu" --compressed |
+                sed -nE "s@.*initCDNMoviesEvents\(${data_id}\, ([0-9]*)\,.*@\1@p")
+            ;;
+        *)
+            default_translator_id=$(curl -s "https://hdrezka.website/${media_type}/$(printf "%s" "$episode_id" | tr '=' '/').html" -A "uwu" --compressed |
+                sed -nE "s@.*initCDNSeriesEvents\(${data_id}\, ([0-9]*)\,.*@\1@p")
+            ;;
+    esac
+    translations=$(curl -s "https://hdrezka.website/${media_type}/$(printf "%s" "$episode_id" | tr '=' '/').html" -A "uwu" --compressed |
+        sed 's/b-translator__item/\n/g' | sed -nE "s@.*data-translator_id=\"([0-9]*)\"[^>]*>(.*)</li.*@\2\t\1@p" |
+        sed 's/<img title="\([^\"]*\)" .*>\(.*\)/(\1)\2/;s/^\(.*\)<\/li><\/ul> <\/div>.*\t\([0-9]*\)/\1\t\2/')
+    if [ -z "$translations" ]; then
+        translator_id=$default_translator_id
+    else
+        translator_id=$(printf "%s" "$translations" | fzf --cycle --reverse --with-nth 1 -d "\t" --header "Choose a translation" | cut -f2)
+    fi
+}
+
 download_thumbnails() {
     printf "%s\n" "$1" | while read -r cover_url media_id title; do
         curl -s -o "$images_cache_dir/  $title $media_id.jpg" "$cover_url" &
@@ -356,7 +378,7 @@ image_preview_fzf() {
     fi
     UB_PID="$(cat "$UB_PID_FILE")"
     JERRY_UEBERZUG_SOCKET=/tmp/ueberzugpp-"$UB_PID".socket
-    choice=$(find "$images_cache_dir" -type f -printf "%f\n" | fzf -i -q "$1" --cycle --preview-window="$preview_window_size" --preview="ueberzugpp cmd -s $JERRY_UEBERZUG_SOCKET -i fzfpreview -a add -x $ueberzug_x -y $ueberzug_y --max-width $ueberzug_max_width --max-height $ueberzug_max_height -f $images_cache_dir/{}" --reverse --with-nth 1..-2 -d " ")
+    choice=$(find "$images_cache_dir" -type f -exec basename {} \; | fzf -i -q "$1" --cycle --preview-window="$preview_window_size" --preview="ueberzugpp cmd -s $JERRY_UEBERZUG_SOCKET -i fzfpreview -a add -x $ueberzug_x -y $ueberzug_y --max-width $ueberzug_max_width --max-height $ueberzug_max_height -f $images_cache_dir/{}" --reverse --with-nth 1..-2 -d " ")
     ueberzugpp cmd -s "$JERRY_UEBERZUG_SOCKET" -a exit
 }
 
@@ -784,6 +806,19 @@ get_episode_info() {
             yugen_id=$(curl -s "https://yugenanime.tv/$tmp_href" | $sed -nE "s@.*id=\"main-embed\" src=\".*/e/([^/]*)/\".*@\1@p")
             episode_info=$(printf "%s\t%s" "$yugen_id" "$ep_title")
             ;;
+        hdrezka)
+            query=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/anime/${media_id}.json" |
+                sed -nE "s@.*\"title\":.\"([^\"]*)\".*@\1@p" | head -1 | tr ' ' '+')
+            request=$(curl -s "https://hdrezka.website/search/?do=search&subaction=search&q=${query}" -A "uwu" --compressed)
+            response=$(printf "%s" "$request" | sed "s/<img/\n/g" | sed -nE "s@.*src=\"([^\"]*)\".*<a href=\"https://hdrezka\.website/(.*)/(.*)/(.*)\.html\">([^<]*)</a> <div>([0-9]*).*@\3/\4\t\5 [\6]\t\2@p")
+            [ -z "$response" ] && exit 1
+            if [ "$(printf "%s\n" "$response" | wc -l)" -eq 1 ]; then
+                send_notification "Jerry" "" "" "Since there is only one result, it was automatically selected"
+                episode_info=$response
+            else
+                episode_info=$(printf "%s" "$response" | launcher "Choose anime: " 2)
+            fi
+            ;;
         9anime)
             nineanime_href=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/anime/${media_id}.json" |
                 tr -d '\n ' | tr '}' '\n' | $sed -nE "s@.*\"9anime\".*\"url\":\"([^\"]*)\".*@\1@p" | head -1 | $sed "s/9anime\.../aniwave.to/")
@@ -860,6 +895,36 @@ extract_from_json() {
                 video_link=$hls_link_1
             fi
             ;;
+        hdrezka)
+            encrypted_video_link=$(printf "%s" "$json_data" | sed -nE "s@.*\"url\":\"([^\"]*)\".*@\1@p" | sed "s/\\\//g" | cut -c'3-' | sed 's|//_//||g')
+            # the part below is pain
+            subs_links=$(printf "%s" "$json_data" | sed -nE "s@.*\"subtitle\":\"([^\"]*)\".*@\1@p" |
+                sed -e 's/\[[^]]*\]//g' -e 's/,/\n/g' -e 's/\\//g' -e "s/:/\\$path_thing:/g" -e "H;1h;\$!d;x;y/\n/$separator/" -e "s/$separator\$//")
+            # TODO: fix subs
+            subs_arg="--sub-files=$subs_links"
+
+            # ty @CoolnsX for helping me out with the decryption
+            table='ISE=,IUA=,IV4=,ISM=,ISQ=,QCE=,QEA=,QF4=,QCM=,QCQ=,XiE=,XkA=,Xl4=,XiM=,XiQ=,IyE=,I0A=,I14=,IyM=,IyQ=,JCE=,JEA=,JF4=,JCM=,JCQ=,ISEh,ISFA,ISFe,ISEj,ISEk,IUAh,IUBA,IUBe,IUAj,IUAk,IV4h,IV5A,IV5e,IV4j,IV4k,ISMh,ISNA,ISNe,ISMj,ISMk,ISQh,ISRA,ISRe,ISQj,ISQk,QCEh,QCFA,QCFe,QCEj,QCEk,QEAh,QEBA,QEBe,QEAj,QEAk,QF4h,QF5A,QF5e,QF4j,QF4k,QCMh,QCNA,QCNe,QCMj,QCMk,QCQh,QCRA,QCRe,QCQj,QCQk,XiEh,XiFA,XiFe,XiEj,XiEk,XkAh,XkBA,XkBe,XkAj,XkAk,Xl4h,Xl5A,Xl5e,Xl4j,Xl4k,XiMh,XiNA,XiNe,XiMj,XiMk,XiQh,XiRA,XiRe,XiQj,XiQk,IyEh,IyFA,IyFe,IyEj,IyEk,I0Ah,I0BA,I0Be,I0Aj,I0Ak,I14h,I15A,I15e,I14j,I14k,IyMh,IyNA,IyNe,IyMj,IyMk,IyQh,IyRA,IyRe,IyQj,IyQk,JCEh,JCFA,JCFe,JCEj,JCEk,JEAh,JEBA,JEBe,JEAj,JEAk,JF4h,JF5A,JF5e,JF4j,JF4k,JCMh,JCNA,JCNe,JCMj,JCMk,JCQh,JCRA,JCRe,JCQj,JCQk'
+
+            for i in $(printf "%s" "$table" | tr ',' '\n'); do
+                encrypted_video_link=$(printf "%s" "$encrypted_video_link" | sed "s/$i//g")
+            done
+
+            video_links=$(printf "%s" "$encrypted_video_link" | sed 's/_//g' | base64 -d | tr ',' '\n' | sed -nE "s@\[([^\]*)\](.*)@\"\1\":\"\2\",@p")
+            video_links_json=$(printf "%s" "$video_links" | tr -d '\n' | sed "s/,$//g")
+            json_data=$(printf "%s" "$json_data" | sed -E "s@\"url\":\"[^\"]*\"@\"url\":\{$video_links_json\}@")
+            if [ "$json_output" = "1" ]; then
+                printf "%s\n" "$json_data"
+                exit 0
+            fi
+            if [ -n "$quality" ]; then
+                video_link=$(printf "%s" "$video_links" | sed -nE "s@\"${quality}.*\":\".* or ([^\"]*)\".*@\1@p" | tail -1)
+            else
+                # auto selects best quality
+                video_link=$(printf "%s" "$video_links" | sed -nE "s@\".*\":\".* or ([^\"]*)\".*@\1@p" | tail -1)
+            fi
+            [ -z "$video_link" ] && exit 1
+            ;;
         9anime)
             if [ "$json_output" = "1" ]; then
                 printf "%s\n" "$json_data"
@@ -910,6 +975,19 @@ get_json() {
             ;;
         yugen)
             json_data=$(curl -s 'https://yugenanime.tv/api/embed/' -X POST -H 'X-Requested-With: XMLHttpRequest' --data-raw "id=$episode_id&ac=0")
+            ;;
+        hdrezka)
+            hdrezka_data_and_translation_id
+            tmp_season_id=$(curl -s "https://hdrezka.website/${media_type}/${episode_id}.html" -A "uwu" --compressed | sed "s/<li/\n/g" |
+                sed -nE "s@.*data-tab_id=\"([0-9]*)\">([^<]*)</li>.*@\2\t\1@p")
+            if [ -n "$tmp_season_id" ]; then
+                tmp_season_id=$(printf "%s" "$tmp_season_id" | fzf -1 --cycle --reverse --with-nth 1 -d '\t' --header "Choose a season: ")
+                [ -z "$tmp_season_id" ] && exit 1
+                season_title=$(printf "%s" "$tmp_season_id" | cut -f1)
+                season_id=$(printf "%s" "$tmp_season_id" | cut -f2)
+            fi
+            episode_id=$((progress + 1))
+            json_data=$(curl -s -X POST "https://hdrezka.website/ajax/get_cdn_series/" -A "uwu" --data-raw "id=${data_id}&translator_id=${translator_id}&season=${season_id}&episode=${episode_id}&action=get_stream" --compressed)
             ;;
         9anime)
             server_list_vrf=$(nine_anime_helper "vrf" "$episode_id" "url" | xxd -plain | tr -d '\n' | sed 's/\(..\)/%\1/g')
@@ -1027,7 +1105,10 @@ play_video() {
             displayed_episode_title="Ep $((progress + 1)) $episode_title"
             ;;
     esac
-    displayed_title="$title - $displayed_episode_title"
+    case "$provider" in
+        hdrezka) displayed_title="$episode_title - Ep $((progress + 1))" ;;
+        *) displayed_title="$title - $displayed_episode_title" ;;
+    esac
     case $player in
         mpv)
             if [ -f "$history_file" ] && [ -z "$using_number" ]; then
@@ -1106,6 +1187,7 @@ watch_anime() {
     fi
     episode_id=$(printf "%s" "$episode_info" | cut -f1)
     episode_title=$(printf "%s" "$episode_info" | cut -f2)
+    [ "$provider" = "hdrezka" ] && media_type=$(printf "%s" "$episode_info" | cut -f3)
     if [ "$episode_id" = "$episode_title" ]; then
         episode_title=""
     fi
@@ -1391,6 +1473,7 @@ case "$provider" in
     zoro | kaido | aniwatch) provider="aniwatch" ;;
     9anime | nineanime | aniwave) provider="9anime" ;;
     yugen | yugenanime) provider="yugen" ;;
+    hdrezka | rezka) provider="hdrezka" ;;
     *) send_notification "Invalid provider" && exit 1 ;;
 esac
 if [ "$image_preview" = 1 ]; then

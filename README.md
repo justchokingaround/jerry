@@ -24,8 +24,8 @@ Jerry is a command line tool for streaming anime from various providers. It can 
 - [Credits](#credits)
 
 ## Features
-- Search for and stream anime from various providers (currently supported: 9anime, aniwatch and yugen) (default: 9anime)
-  (some providers, such as kaido and have support for external subtitles which allows more freedom)
+- Search for and stream anime from various providers (currently supported: 9anime/aniwave, zoro/aniwatch, yugen and hdrezka) (default: 9anime/aniwave)
+  (some providers, such as aniwatch and have support for external subtitles which allows more freedom)
 - Sync watch progress on Anilist on episode completion, and locally (down to the second watched, just like YouTube and Netflix does it)
 - Customize subtitle language, video quality, provider and many other things (using arguments or config file)
 - Edit the configuration file using the command line
@@ -43,14 +43,13 @@ sudo chmod +x /usr/local/bin/jerry
 ```
 #### Optional: Discord Rich Presence (requires python3 and the python packages: pypresence and httpx)
 ```sh
-pip install httpx pypresence re
 sudo curl -sL github.com/justchokingaround/jerry/raw/main/jerrydiscordpresence.py -o /usr/local/bin/jerrydiscordpresence.py &&
 sudo chmod +x /usr/local/bin/jerrydiscordpresence.py
 ```
 ---
 ### Mac
 ```sh
-pip install httpx pypresence re
+pip install httpx pypresence
 curl -sL github.com/justchokingaround/jerry/raw/main/jerry.sh -o "$(brew --prefix)"/bin/jerry &&
 chmod +x "$(brew --prefix)"/bin/jerry
 ```
