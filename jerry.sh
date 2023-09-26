@@ -108,7 +108,7 @@ configuration() {
     [ -f "$config_file" ] && . "${config_file}"
     [ -z "$player" ] && player="mpv"
     [ -z "$provider" ] && provider="9anime"
-    [ -z "$video_provider" ] && video_provider="Vidstream"
+    [ -z "$video_provider" ] && video_provider="Vidplay"
     [ -z "$base_helper_url" ] && base_helper_url="https://9anime.eltik.net"
     [ -z "$download_dir" ] && download_dir="$PWD"
     [ -z "$manga_dir" ] && manga_dir="$data_dir/jerry-manga"
@@ -943,7 +943,7 @@ extract_from_json() {
                 exit 0
             fi
             case "$video_provider" in
-                "Vidstream")
+                "Vidplay")
                     video_link="$(printf "%s" "$json_data" | $sed -nE "s@.*file\":\"([^\"]*\.mp4)\".*@\1@p")"
                     case "$quality" in
                         1080) video_link="$(printf "%s" "$video_link" | $sed "s@/br/list\.m3u8@/br/H4/v\.m3u8@")" ;;
@@ -1017,7 +1017,7 @@ get_json() {
             provider_query=$(printf "%s" "$provider_embed" | $sed -nE "s@.*/e/(.*)@\1@p")
 
             case "$video_provider" in
-                "Vidstream")
+                "Vidplay")
                     raw_url=$(nine_anime_extractor "rawvizcloud" "$provider_query" "rawURL")
                     json_data=$(curl -s "$raw_url" -e "$provider_embed" | $sed "s/\\\//g")
                     ;;
