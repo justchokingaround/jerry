@@ -182,6 +182,12 @@ update_script() {
     which_jerry="$(command -v jerry)"
     [ -z "$which_jerry" ] && send_notification "Can't find jerry in PATH"
     [ -z "$which_jerry" ] && exit 1
+
+    if [ "$EUID" -ne 0 ]
+    then
+        exec sudo -s "$which_jerry" "-u"
+    fi
+
     update=$(curl -s "https://raw.githubusercontent.com/justchokingaround/jerry/main/jerry.sh" || exit 1)
     update="$(printf '%s\n' "$update" | diff -u "$which_jerry" -)"
     if [ -z "$update" ]; then
