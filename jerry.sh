@@ -183,13 +183,12 @@ update_script() {
     [ -z "$which_jerry" ] && send_notification "Can't find jerry in PATH"
     [ -z "$which_jerry" ] && exit 1
 
-    if [ "$EUID" -ne 0 ]
-    then
+    if [ "$EUID" -ne 0 ]; then
         exec sudo -s "$which_jerry" "-u"
     fi
 
     update=$(curl -s "https://raw.githubusercontent.com/justchokingaround/jerry/main/jerry.sh" || exit 1)
-    update="$(printf '%s\n' "$update" | diff -u "$which_jerry" -)"
+    update="$(printf '%s\n' "$update" | diff -u "$which_jerry" - 2>/dev/null)"
     if [ -z "$update" ]; then
         send_notification "Script is up to date :)"
     else
@@ -204,7 +203,7 @@ update_script() {
 
 check_update() {
     update=$(curl -s "https://raw.githubusercontent.com/justchokingaround/jerry/main/jerry.sh")
-    update="$(printf '%s\n' "$update" | diff -u "$(command -v jerry)" -)"
+    update="$(printf '%s\n' "$update" | diff -u "$(command -v jerry)" - 2>/dev/null)"
     if [ -n "$update" ]; then
         if [ "$use_external_menu" = 0 ] || [ "$use_external_menu" = "false" ]; then
             printf "%s" "$1" && read -r answer
@@ -244,7 +243,7 @@ check_update() {
             esac
         else
             update=$(curl -s "https://raw.githubusercontent.com/justchokingaround/jerry/main/jerrydiscordpresence.py" || return)
-            update="$(printf '%s\n' "$update" | diff -u "$(command -v "$presence_script_path")" -)"
+            update="$(printf '%s\n' "$update" | diff -u "$(command -v "$presence_script_path")" - 2>/dev/null)"
             if [ -n "$update" ]; then
                 if [ "$use_external_menu" = 0 ] || [ "$use_external_menu" = "false" ]; then
                     printf "%s" "$2" && read -r answer
@@ -284,15 +283,15 @@ get_input() {
 }
 
 convert_hex() {
-  text="$(cat -)"
-  len=${#text}
+    text="$(cat -)"
+    len=${#text}
 
-  for i in $(seq 0 $((len - 1))); do
-	  char=$(printf "%s" "$text" | cut -c "$((i + 1))")
-	  hex_val=$(printf "%02x" "'$char")
-	  printf "%s" "$hex_val"
-  done
-  printf "\n"
+    for i in $(seq 0 $((len - 1))); do
+        char=$(printf "%s" "$text" | cut -c "$((i + 1))")
+        hex_val=$(printf "%02x" "'$char")
+        printf "%s" "$hex_val"
+    done
+    printf "\n"
 }
 
 generate_desktop() {
