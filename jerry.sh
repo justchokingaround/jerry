@@ -389,9 +389,9 @@ download_thumbnails() {
 image_preview_fzf() {
     UB_PID_FILE="/tmp/.$(uuidgen)"
     if [ -z "$ueberzug_output" ]; then
-        ueberzugpp layer --no-stdin --silent --use-escape-codes --pid-file "$UB_PID_FILE"
+        ueberzugpp layer --no-stdin --silent --use-escape-codes --pid-file "$UB_PID_FILE" 2> /dev/null
     else
-        ueberzugpp layer -o "$ueberzug_output" --no-stdin --silent --use-escape-codes --pid-file "$UB_PID_FILE"
+        ueberzugpp layer -o "$ueberzug_output" --no-stdin --silent --use-escape-codes --pid-file "$UB_PID_FILE" 2> /dev/null
     fi
     UB_PID="$(cat "$UB_PID_FILE")"
     JERRY_UEBERZUG_SOCKET=/tmp/ueberzugpp-"$UB_PID".socket
