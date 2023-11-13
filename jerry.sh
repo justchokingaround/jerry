@@ -86,7 +86,7 @@ usage() {
     -v, --version
       Show the script version
     -w, --website
-      Choose which website to get video links from (default: 9anime) (currently supported: 9anime, aniwatch, yugen and hdrezka)
+			Choose which website to get video links from (default: aniwatch) (currently supported: 9anime (broken atm), aniwatch, yugen and hdrezka)
 
     Note: 
       All arguments can be specified in the config file as well.
@@ -107,7 +107,7 @@ configuration() {
     #shellcheck disable=1090
     [ -f "$config_file" ] && . "${config_file}"
     [ -z "$player" ] && player="mpv"
-    [ -z "$provider" ] && provider="9anime"
+    [ -z "$provider" ] && provider="aniwatch"
     [ -z "$video_provider" ] && video_provider="Vidplay"
     [ -z "$base_helper_url" ] && base_helper_url="https://9anime.eltik.net"
     [ -z "$download_dir" ] && download_dir="$PWD"
@@ -861,22 +861,8 @@ extract_from_json() {
                 json_key="sources"
                 encrypted=$(printf "%s" "$json_data" | tr "{}" "\n" | $sed -nE "s_.*\"${json_key}\":\"([^\"]*)\".*_\1_p")
                 embed_type="6"
-
-                claude_key=$(curl -s "https://github.com/Claudemirovsky/keys/blob/e${embed_type}/key" | $sed -nE "s@.*rawLines\":\[\"([^\"]*)\".*@\1@p" |
-                    tr -d ' ' | $sed "s/],/ /g;s/\[//g;s/\]//g")
-                current_sum=0
-                eni_array=$(for pair in $claude_key; do
-                    first_term=$(printf "%s" "$pair" | cut -d, -f1)
-                    second_term=$(printf "%s" "$pair" | cut -d, -f2)
-
-                    first_term=$((first_term + current_sum))
-                    current_sum=$((current_sum + second_term))
-                    second_term=$((first_term + second_term))
-
-                    printf "[%s,%s]" "$first_term" "$second_term"
-                done)
-
-                enikey=$(printf "[%s]" "$eni_array" | $sed "s/\]\[/\],\[/g" | $sed 's/\[\([0-9]*\),\([0-9]*\)\]/\1-\2/g;s/\[//g;s/\]//g;s/,/ /g')
+								enikey=$(curl -s "http://zoro-keys.freeddns.org/keys/e${embed_type}/key.txt" | tr -d ' ' |
+									$sed 's/\[\([0-9]*\),\([0-9]*\)\]/\1-\2/g;s/\[//g;s/\]//g;s/,/ /g')
 
                 encrypted_video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | $sed -nE "s_.*\"sources\":\"([^\"]*)\".*_\1_p" | head -1)
 
@@ -888,7 +874,7 @@ extract_from_json() {
                     end="${key#*-}"
                     key=$(printf "%s" "$encrypted_video_link" | cut -c"$start-$end")
                     final_key="$final_key$key"
-                    tmp_encrypted_video_link=$(printf "%s" "$tmp_encrypted_video_link" | $sed "s/$key//g")
+                    tmp_encrypted_video_link=$(printf "%s" "$tmp_encrypted_video_link" | $sed "s|$key||g")
                 done
 
                 # ty @CoolnsX for helping me with figuring out how to implement aes in openssl
