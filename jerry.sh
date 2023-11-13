@@ -183,7 +183,7 @@ update_script() {
     [ -z "$which_jerry" ] && send_notification "Can't find jerry in PATH"
     [ -z "$which_jerry" ] && exit 1
 
-    if [ "$EUID" -ne 0 ]; then
+    if [ "$(id --user)" -ne 0 ]; then
         exec sudo -s "$which_jerry" "-u"
     fi
 
