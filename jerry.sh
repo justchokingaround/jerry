@@ -87,6 +87,8 @@ usage() {
       Show the script version
     -w, --website
 			Choose which website to get video links from (default: aniwatch) (currently supported: 9anime (broken atm), aniwatch, yugen and hdrezka)
+	--ani_skip
+	    Skips the intro/ending as invoked by ani_skip (https://github.com/synacktraa/ani-skip)
 
     Note: 
       All arguments can be specified in the config file as well.
@@ -132,6 +134,7 @@ configuration() {
     fi
     [ -z "$discord_presence" ] && discord_presence="false"
     [ -z "$presence_script_path" ] && presence_script_path="jerrydiscordpresence.py"
+    [ -z "$ani_skip" ] && ani_skip=0
 }
 
 check_credentials() {
@@ -1128,6 +1131,9 @@ play_video() {
     esac
     case $player in
         mpv)
+            if [ "$ani_skip" = 1 ]; then
+                skip_flag="$(ani-skip "$title" "$((progress + 1))")"
+            fi
             if [ -f "$history_file" ] && [ -z "$using_number" ]; then
                 history=$(grep -E "^${media_id}[[:space:]]*$((progress + 1))" "$history_file")
             elif [ -f "$history_file" ]; then
@@ -1145,14 +1151,14 @@ play_video() {
                 if [ "$discord_presence" = "true" ]; then
                     eval "$presence_script_path" \"mpv\" \"${title}\" \"$((progress + 1))\" \"${video_link}\" \"${subs_links}\" \"${opts}\" 2>&1 | tee $tmp_position
                 else
-                    mpv "$video_link" "$opts" "$subs_arg" "$subs_links" --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
+                    mpv "$video_link" "$opts" "$subs_arg" "$subs_links" --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error $skip_flag 2>&1 | tee $tmp_position
                 fi
             else
                 send_notification "$title" "4000" "$images_cache_dir/  $title $progress|$episodes_total episodes $media_id.jpg" "$displayed_episode_title"
                 if [ "$discord_presence" = "true" ]; then
                     eval "$presence_script_path" \"mpv\" \"${title}\" \"$((progress + 1))\" \"${video_link}\" \"\" \"${opts}\" 2>&1 | tee $tmp_position
                 else
-                    mpv "$video_link" "$opts" --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
+                    mpv "$video_link" "$opts" --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error $skip_flag 2>&1 | tee $tmp_position
                 fi
             fi
             stopped_at=$($sed -nE "s@.*AV: ([0-9:]*) / ([0-9:]*) \(([0-9]*)%\).*@\1@p" "$tmp_position" | tail -1)
