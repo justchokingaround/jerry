@@ -239,7 +239,6 @@ check_update() {
                             ;;
                     esac
                     ;;
-                *) exit 0 ;;
             esac
         else
             update=$(curl -s "https://raw.githubusercontent.com/justchokingaround/jerry/main/jerrydiscordpresence.py" || return)
@@ -262,7 +261,6 @@ check_update() {
                             send_notification "Can't update for some reason!"
                         fi
                         ;;
-                    *) exit 0 ;;
                 esac
             fi
         fi
