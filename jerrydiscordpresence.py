@@ -21,8 +21,7 @@ http_client = httpx.Client(base_url=ENDPONT)
     episode_count,
     content_stream,
     subtitle_stream,
-    opts,
-    *_,
+    *opts,
 ) = sys.argv
 
 
@@ -43,16 +42,14 @@ if subtitle_stream != "":
         f"--force-media-title={media_title}",
         f"--sub-files={subtitle_stream}",
         "--msg-level=ffmpeg/demuxer=error",
-        f"{opts}",
-    ]
+    ] + opts
 else:
     args = [
         mpv_executable,
         content_stream,
         f"--force-media-title={media_title}",
         "--msg-level=ffmpeg/demuxer=error",
-        f"{opts}",
-    ]
+    ] + opts
 
 
 process = subprocess.Popen(

@@ -239,7 +239,6 @@ check_update() {
                             ;;
                     esac
                     ;;
-                *) exit 0 ;;
             esac
         else
             update=$(curl -s "https://raw.githubusercontent.com/justchokingaround/jerry/main/jerrydiscordpresence.py" || return)
@@ -262,7 +261,6 @@ check_update() {
                             send_notification "Can't update for some reason!"
                         fi
                         ;;
-                    *) exit 0 ;;
                 esac
             fi
         fi
@@ -1134,25 +1132,24 @@ play_video() {
                 history=$(grep -E "^${media_id}[[:space:]]*[0-9/]*" "$history_file")
             fi
             [ -n "$history" ] && resume_from=$(printf "%s" "$history" | cut -f3)
+            opts="$player_arguments"
             if [ -n "$resume_from" ]; then
-                opts="--start=${resume_from}"
+                opts="$opts --start=${resume_from}"
                 send_notification "Resuming from" "" "" "$resume_from"
-            else
-                opts=""
             fi
             if [ -n "$subs_links" ]; then
                 send_notification "$title" "4000" "$images_cache_dir/  $title $progress|$episodes_total episodes $media_id.jpg" "$displayed_episode_title"
                 if [ "$discord_presence" = "true" ]; then
-                    eval "$presence_script_path" \"mpv\" \"${title}\" \"$((progress + 1))\" \"${video_link}\" \"${subs_links}\" \"${opts}\" 2>&1 | tee $tmp_position
+                    eval "$presence_script_path" \"mpv\" \"${title}\" \"$((progress + 1))\" \"${video_link}\" \"${subs_links}\" ${opts} 2>&1 | tee $tmp_position
                 else
-                    mpv "$video_link" "$opts" "$subs_arg" "$subs_links" --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
+                    mpv "$video_link" $opts "$subs_arg" "$subs_links" --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
                 fi
             else
                 send_notification "$title" "4000" "$images_cache_dir/  $title $progress|$episodes_total episodes $media_id.jpg" "$displayed_episode_title"
                 if [ "$discord_presence" = "true" ]; then
-                    eval "$presence_script_path" \"mpv\" \"${title}\" \"$((progress + 1))\" \"${video_link}\" \"\" \"${opts}\" 2>&1 | tee $tmp_position
+                    eval "$presence_script_path" \"mpv\" \"${title}\" \"$((progress + 1))\" \"${video_link}\" \"\" ${opts} 2>&1 | tee $tmp_position
                 else
-                    mpv "$video_link" "$opts" --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
+                    mpv "$video_link" $opts --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
                 fi
             fi
             stopped_at=$($sed -nE "s@.*AV: ([0-9:]*) / ([0-9:]*) \(([0-9]*)%\).*@\1@p" "$tmp_position" | tail -1)
