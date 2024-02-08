@@ -412,7 +412,7 @@ get_anime_from_list() {
     anime_list=$(curl -s -X POST "$anilist_base" \
         -H 'Content-Type: application/json' \
         -H "Authorization: Bearer $access_token" \
-        -d "{\"query\":\"query(\$userId:Int,\$userName:String,\$type:MediaType){MediaListCollection(userId:\$userId,userName:\$userName,type:\$type){lists{name isCustomList isCompletedList:isSplitCompletedList entries{...mediaListEntry}}user{id name avatar{large}mediaListOptions{scoreFormat rowOrder animeList{sectionOrder customLists splitCompletedSectionByFormat theme}mangaList{sectionOrder customLists splitCompletedSectionByFormat theme}}}}}fragment mediaListEntry on MediaList{id mediaId status score progress progressVolumes repeat priority private hiddenFromStatusLists customLists advancedScores notes updatedAt startedAt{year month day}completedAt{year month day}media{id title{userPreferred romaji english native}coverImage{extraLarge large}type format status(version:2)episodes volumes chapters averageScore popularity isAdult countryOfOrigin genres bannerImage nextAiringEpisode{airingAt timeUntilAiring episode} startDate{year month day}}}\",\"variables\":{\"userId\":$user_id,\"type\":\"ANIME\"}}" | $sed "s@},{@\n@g" | $sed -nE "s@.*\"mediaId\":([0-9]*),\"status\":\"$1\",\"score\":(.*),\"progress\":([0-9]*),.*\"userPreferred\":\"([^\"]*)\".*\"coverImage\":\{\"extraLarge\":\"([^\"]*)\".*\"episode([\"]*)s*[\"]*:([0-9]*).*@\5\t\1\t\4 \3|\7 episodes \6 \[\2\]@p" | $sed 's/\\\//\//g;s/\"/(releasing)/')
+        -d "{\"query\":\"query(\$userId:Int,\$userName:String,\$type:MediaType){MediaListCollection(userId:\$userId,userName:\$userName,type:\$type){lists{name isCustomList isCompletedList:isSplitCompletedList entries{...mediaListEntry}}user{id name avatar{large}mediaListOptions{scoreFormat rowOrder animeList{sectionOrder customLists splitCompletedSectionByFormat theme}mangaList{sectionOrder customLists splitCompletedSectionByFormat theme}}}}}fragment mediaListEntry on MediaList{id mediaId status score progress progressVolumes repeat priority private hiddenFromStatusLists customLists advancedScores notes updatedAt startedAt{year month day}completedAt{year month day}media{id title{userPreferred romaji english native}coverImage{extraLarge large}type format status(version:2)episodes volumes chapters averageScore popularity isAdult countryOfOrigin genres bannerImage nextAiringEpisode{airingAt timeUntilAiring episode} startDate{year month day}}}\",\"variables\":{\"userId\":$user_id,\"type\":\"ANIME\"}}" | $sed "s@},{@\n@g" | $sed -nE "s@.*\"mediaId\":([0-9]*),\"status\":\"($1)\",\"score\":(.*),\"progress\":([0-9]*),.*\"userPreferred\":\"([^\"]*)\".*\"coverImage\":\{\"extraLarge\":\"([^\"]*)\".*\"episode([\"]*)s*[\"]*:([0-9]*).*@\6\t\1\t\5 \4|\8 episodes \7 \[\3\]@p" | $sed 's/\\\//\//g;s/\"/(releasing)/')
     if [ "$use_external_menu" = 1 ]; then
         case "$image_preview" in
             "true" | 1)
@@ -739,7 +739,7 @@ update_status() {
 }
 
 update_score() {
-    [ "$percentage_progress" -lt 85 ] && return
+    [ -z "$percentage_progress" ] || [ "$percentage_progress" -lt 85 ] && return
     if [ "$2" = "immediate" ]; then
         [ "$1" = "ANIME" ] && total="$episodes_total"
         [ "$1" = "MANGA" ] && total="$chapters_total"
@@ -1073,7 +1073,7 @@ get_manga_json() {
 #### MEDIA FUNCTIONS ####
 
 add_to_history() {
-    if [ "$percentage_progress" -gt 85 ]; then
+    if [ -n "$percentage_progress" ] && [ "$percentage_progress" -gt 85 ]; then
         if [ -z "$no_anilist" ]; then
             response=$(update_progress "$progress" "$media_id" "$status")
             if printf "%s" "$response" | grep -q "errors"; then
@@ -1229,7 +1229,7 @@ read_manga() {
 
 watch_anime_choice() {
     if [ -z "$media_id" ] && [ -z "$no_anilist" ]; then
-        get_anime_from_list "CURRENT"
+        get_anime_from_list "CURRENT|REPEATING"
     elif [ -z "$media_id" ]; then
         [ -z "$query" ] && get_input "Search anime: "
         [ -z "$query" ] && exit 1
@@ -1260,7 +1260,7 @@ binge() {
     while :; do
         if [ "$1" = "ANIME" ]; then
             watch_anime_choice
-            [ "$percentage_progress" -lt 85 ] && break
+            [ -z "$percentage_progress" ] || [ "$percentage_progress" -lt 85 ] && break
             [ $((progress + 1)) = "$episodes_total" ] && break
             send_notification "Please only select Yes if you have finished watching the episode" "5000"
             binge_watching=$(printf "Yes\nNo" | launcher "Do you want to keep binge watching? [Y/n] ")
