@@ -180,11 +180,18 @@ edit_configuration() {
 
 update_script() {
     which_jerry="$(command -v jerry)"
-    [ -z "$which_jerry" ] && send_notification "Can't find jerry in PATH"
-    [ -z "$which_jerry" ] && exit 1
+    if [ -z "$which_jerry" ]; then
+        send_notification "Can't find jerry in PATH"
+        exit 1
+    fi
 
-    if [ "$(id --user)" -ne 0 ]; then
-        exec sudo -s "$which_jerry" "-u"
+    if [ ! -w "$which_jerry" ]; then
+        if [ -n "$(command -v sudo)" ]; then
+            exec sudo -s "$which_jerry" "-u"
+        else
+            send_notification "Insufficient permissions to update and can't find sudo in PATH"
+            exit 1
+        fi
     fi
 
     update=$(curl -s "https://raw.githubusercontent.com/justchokingaround/jerry/main/jerry.sh" || exit 1)
