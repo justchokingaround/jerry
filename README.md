@@ -2,13 +2,13 @@
 
 https://github.com/justchokingaround/jerry/assets/44473782/c73b0dd9-9637-439f-a5fb-aa8012b0a496
 
-![image](https://github.com/justchokingaround/jerry/assets/44473782/0d20c2f4-df22-4dbc-b1b0-af41b074dd44)
-
 ![image](https://github.com/justchokingaround/jerry/assets/44473782/9f49b6e1-a07a-4610-b893-6a5ab816c40b)
 
 
 # Jerry
-Jerry is a command line tool for streaming anime from various providers. It can search for and play anime, continue watching from the currently watching list, and has various options for customization. The core idea of the script is that it allows users to watch anime in sync with their anilist account, automatically updating and tracking all progress (down to seconds of an episode watched).
+The core idea of the script is that it allows users to watch anime in sync with their anilist account, automatically updating and tracking all progress (down to seconds of an episode watched).
+
+But the script also has a lot of other features, which you can find in the features section.
 
 ## Join the discord server!
 
@@ -23,41 +23,86 @@ Jerry is a command line tool for streaming anime from various providers. It can 
 - [Dependencies](#dependencies)
 - [Credits](#credits)
 
-## Features
-- Search for and stream anime from various providers (currently supported: 9anime/aniwave, zoro/aniwatch, yugen and hdrezka) (default: 9anime/aniwave)
-  (some providers, such as aniwatch and have support for external subtitles which allows more freedom)
+## Features (please check the wiki for configuration information)
+- Multiple providers: allanime (default), aniwatch, yugen, hdrezka and crunchyroll (requires token or email and password)
 - Sync watch progress on Anilist on episode completion, and locally (down to the second watched, just like YouTube and Netflix does it)
+![progress](./assets/progress.png)
+
 - Customize subtitle language, video quality, provider and many other things (using arguments or config file)
-- Edit the configuration file using the command line
-- Update the script from GitHub
-- Discord Rich Presence: display currently watched anime in Discord (requires the installation of the helper python script: jerrydiscordpresence.py)
-- External menu support: ability to use rofi, so that opening a terminal window isn't even required to run the script !! (this can be used to setting the script to run on a keybind)
+![language](./assets/language.png)
+![language_and_progress](./assets/language_and_progress.png)
+
+- Discord Rich Presence: display currently watched anime in Discord (currently requires the installation of the helper python script: `jerrydiscordpresence.py`)
+![presence](./assets/presence.png)
+
+- External menu support: ability to use rofi, so that opening a terminal window isn't even required to run the script! (this can be used to setting the script to run on a keybind)
+![external_menu](./assets/external_menu.png)
+![rofi_image_preview](./assets/rofi_image_preview.png)
+
 - Output episode links in JSON format
 
 
 ## Installation
-### Linux
+### Linux/macOS
 ```sh
 sudo curl -sL github.com/justchokingaround/jerry/raw/main/jerry.sh -o /usr/local/bin/jerry &&
 sudo chmod +x /usr/local/bin/jerry
 ```
-#### Optional: Discord Rich Presence (requires python3 and the python packages: pypresence and httpx)
-```sh
-sudo curl -sL github.com/justchokingaround/jerry/raw/main/jerrydiscordpresence.py -o /usr/local/bin/jerrydiscordpresence.py &&
-sudo chmod +x /usr/local/bin/jerrydiscordpresence.py
+
+<details>
+<summary>Windows installation instructions</summary>
+
+* This guide covers how to install and use jerry with the Windows Terminal (which comes pre-installed with Windows 11), you could also use a different terminal emulator, that supports fzf, like for example Wezterm
+* Note that the Git Bash terminal does *not* have proper 
+fzf support
+
+Basically, what we are going to do is install the bash shell and use it to install the shell script. We will also install the mpv video player and fzf, which are required for the script to work.
+
+1. Install scoop
+
+Open a PowerShell terminal https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows?view=powershell-7.2#msi (version 5.1 or later) and run:
+
+```ps
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+irm get.scoop.sh | iex
 ```
----
-### Mac
-```sh
-pip install httpx pypresence
-curl -sL github.com/justchokingaround/jerry/raw/main/jerry.sh -o "$(brew --prefix)"/bin/jerry &&
-chmod +x "$(brew --prefix)"/bin/jerry
+
+2. Install git,mpv and fzf
+
+```ps
+scoop bucket add extras
+scoop install git mpv fzf
 ```
-#### Optional: Discord Rich Presence (requires python3 and the python packages: pypresence and httpx)
+3. Install windows terminal (you don't need to have a microsoft account for that)
+   https://learn.microsoft.com/en-us/windows/terminal/install
+
+4. Install git bash (select the option to add it to the windows terminal during installation)
+   https://git-scm.com/download/win
+
+(The next steps are to be done in the windows terminal, in a bash shell)
+
+5. Download the script file to the current directory
 ```sh
-curl -sL github.com/justchokingaround/jerry/raw/main/jerrydiscordpresence.py -o "$(brew --prefix)"/bin/jerrydiscordpresence.py
-chmod +x "$(brew --prefix)"/bin/jerrydiscordpresence.py
+curl -O "https://raw.githubusercontent.com/justchokingaround/jerry/main/jerry.sh"
 ```
+
+6. Give it executable permissions
+```sh
+chmod +x jerry.sh
+```
+
+7. Copy the script to path
+```sh
+cp jerry.sh /usr/bin/jerry
+```
+
+8. Use jerry
+```sh
+jerry --help
+```
+
+</details>
+
 
 ## Usage
 ```
@@ -69,6 +114,8 @@ Options:
       Continue watching from currently watching list (using the user's anilist account)
     --dub
       Allows user to watch anime in dub
+    -d, --discord
+      Display currently watching anime in Discord Rich Presence (jerrydiscordpresence.py is required for this, check the wiki for instructions on how to install it)
     -e, --edit
       Edit config file using an editor defined with jerry_editor in the config (\$EDITOR by default)
       If a config file does not exist, creates one with a default configuration
@@ -93,7 +140,7 @@ Options:
     -v, --version
       Show the script version
     -w, --website
-      Choose which website to get video links from (default: 9anime) (currently supported: 9anime, kaido and yugen)
+      Choose which website to get video links from (default: allanime) (currently supported: allanime, aniwatch, yugen, hdrezka, and crunchyroll)
 
   Note: 
     All arguments can be specified in the config file as well.
@@ -110,6 +157,8 @@ You can use the following command to edit your jerry configuration (in case a co
 ```sh
 jerry -e
 ```
+
+For more information on the configuration file, please check the wiki.
 
 ## Dependencies
 - grep

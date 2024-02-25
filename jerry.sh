@@ -63,8 +63,8 @@ usage() {
       Allows user to watch anime in dub
     -e, --edit
       Edit config file using an editor defined with jerry_editor in the config (\$EDITOR by default). If a config file does not exist, creates one with a default configuration
-		-d, --discord
-      Display currently watching anime in Discord Rich Presence (jerrydiscordpresence.py is required for this, check the readme for instructions on how to install it)
+	-d, --discord
+      Display currently watching anime in Discord Rich Presence (jerrydiscordpresence.py is required for this, check the wiki for instructions on how to install it)
     -h, --help
       Show this help message and exit
     -i, --image-preview
@@ -1473,7 +1473,7 @@ while [ $# -gt 0 ]; do
     esac
 done
 # check for update
-check_update "A new update is out. Would you like to update jerry? [Y/n] "
+# check_update "A new update is out. Would you like to update jerry? [Y/n] "
 query="$(printf "%s" "$query" | tr ' ' '-' | $sed "s/^-//g")"
 case "$provider" in
     allanime)
