@@ -852,6 +852,19 @@ get_episode_info() {
             [ -z "$episode_info" ] && episode_info=$(curl -sL "https://aniwave.to/ajax/episode/list/$data_id?vrf=$ep_list_vrf" | $sed 's/<li/\n/g;s/\\//g' |
                 $sed -nE "s@.*data-ids=\"([^\"]*)\".*@\1@p" | $sed -n "$((progress + 1))p")
             ;;
+        crunchyroll)
+            cr_href=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/anime/${media_id}.json" |
+                tr -d '\n ' | tr '}' '\n' | $sed -nE "s@.*\"Crunchyroll\".*\"url\":\"([^\"]*)\".*@\1@p" | head -1)
+            cr_id=$(printf "%s" "$cr_href" | sed -nE "s@.*/([^\/]*)/.*@\1@p")
+            access_token=$(curl -s -X POST -H "Authorization: Basic Y3Jfd2ViOg==" -d "grant_type=client_id&scope=offline_access" "https://www.crunchyroll.com/auth/v1/token" |  sed -nE "s@.*\"access_token\":\"([^\"]*)\".*@\1@p")
+            season_id=$(curl -s "https://www.crunchyroll.com/content/v2/cms/series/${cr_id}/seasons" \
+              -H "authorization: Bearer ${access_token}" | sed -nE "s@.*\"id\":\"([^\"]*)\".*@\1@p")
+            response=$(curl -s "https://www.crunchyroll.com/content/v2/cms/seasons/${season_id}/episodes" \
+              -H "authorization: Bearer ${access_token}" | sed "s/},{/\n/g")
+            title=$(printf "%s" "$response" | sed -nE "s@.*\"title\":\"([^\"]*)\".*@\1@p" | sed -n "$((progress + 1))p")
+            eid=$(printf "%s\n" "$response" | sed -nE "s@.*\"id\":\"([^\"]*)\".*@\1@p" | sed -n $((progress + 1))p)
+            episode_info="$(printf "%s\t%s" "$eid" "$title")"
+          ;;
     esac
 }
 
@@ -974,7 +987,6 @@ extract_from_json() {
 get_json() {
     case "$provider" in
         aniwatch)
-
             if [ "$dub" = true ]; then
                 source_id=$(curl -s "https://aniwatch.to/ajax/v2/episode/servers?episodeId=$episode_id" |
                     $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"dub\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
@@ -1039,6 +1051,13 @@ get_json() {
                     #     video_link=$(curl -s "$provider_embed" |$sed -nE "s@.*src: \"([^\"]*)\".*@\1@p")
                     #     ;;
             esac
+            ;;
+          crunchyroll)
+            if [ -n "$cr_token" ]; then
+                video_link=$("$cr_wrapper" --eid "$episode_id" --token "$cr_token")
+            else
+                video_link=$("$cr_wrapper" --eid "$episode_id" --email "$cr_email" --password "$cr_password")
+            fi
             ;;
     esac
 
@@ -1495,6 +1514,7 @@ case "$provider" in
     9anime | nineanime | aniwave) provider="9anime" ;;
     yugen | yugenanime) provider="yugen" ;;
     hdrezka | rezka) provider="hdrezka" ;;
+    crunchyroll | cr) provider="crunchyroll" ;;
     *) send_notification "Invalid provider" && exit 1 ;;
 esac
 if [ "$image_preview" = 1 ]; then
