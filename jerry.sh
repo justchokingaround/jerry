@@ -86,7 +86,7 @@ usage() {
     -v, --version
       Show the script version
     -w, --website
-      Choose which website to get video links from (default: aniwatch) (currently supported: aniwatch, yugen, hdrezka and crunchyroll)
+      Choose which website to get video links from (default: allanime) (currently supported: allanime, aniwatch, yugen, hdrezka and crunchyroll)
 
     Note: 
       All arguments can be specified in the config file as well.
@@ -107,7 +107,7 @@ configuration() {
     #shellcheck disable=1090
     [ -f "$config_file" ] && . "${config_file}"
     [ -z "$player" ] && player="mpv"
-    [ -z "$provider" ] && provider="aniwatch"
+    [ -z "$provider" ] && provider="allanime"
     [ -z "$download_dir" ] && download_dir="$PWD"
     [ -z "$manga_dir" ] && manga_dir="$data_dir/jerry-manga"
     [ -z "$manga_format" ] && manga_format="image"
@@ -143,7 +143,63 @@ https://anilist.co/api/v2/oauth/authorize?client_id=9857&response_type=token : "
         echo "$user_id" >"$data_dir/anilist_user_id.txt"
 }
 
-#### HELPER FUNCTIONS ####
+#### SCRAPING FUNCTIONS ####
+## ALLANIME ##
+# this has been adapted from ani-cli
+
+# extract the video links from reponse of embed urls, extract mp4 links form m3u8 lists
+get_links() {
+    episode_link="$(curl -e "$allanime_refr" -s "https://${allanime_base}$*" | sed 's|},{|\n|g' | sed -nE 's|.*link":"([^"]*)".*"resolutionStr":"([^"]*)".*|\2 >\1|p;s|.*hls","url":"([^"]*)".*"hardsub_lang":"en-US".*|\1|p')"
+    case "$episode_link" in
+        *repackager.wixmp.com*)
+            extract_link=$(printf "%s" "$episode_link" | cut -d'>' -f2 | sed 's|repackager.wixmp.com/||g;s|\.urlset.*||g')
+            for j in $(printf "%s" "$episode_link" | sed -nE 's|.*/,([^/]*),/mp4.*|\1|p' | sed 's|,|\n|g'); do
+                printf "%s >%s\n" "$j" "$extract_link" | sed "s|,[^/]*|${j}|g"
+            done | sort -nr
+            ;;
+        *vipanicdn* | *anifastcdn*)
+            if printf "%s" "$episode_link" | head -1 | grep -q "original.m3u"; then
+                printf "%s" "$episode_link"
+            else
+                extract_link=$(printf "%s" "$episode_link" | head -1 | cut -d'>' -f2)
+                relative_link=$(printf "%s" "$extract_link" | sed 's|[^/]*$||')
+                curl -e "$allanime_refr" -s "$extract_link" -A "$agent" | sed 's|^#.*x||g; s|,.*|p|g; /^#/d; $!N; s|\n| >|' | sed "s|>|>${relative_link}|g" | sort -nr
+            fi
+            ;;
+        *) [ -n "$episode_link" ] && printf "%s\n" "$episode_link" ;;
+    esac
+    printf "\033[1;32m%s\033[0m Links Fetched\n" "$provider_name" 1>&2
+}
+
+# innitialises provider_name and provider_id. First argument is the provider name, 2nd is the regex that matches that provider's link
+provider_init() {
+    provider_name=$1
+    provider_id=$(printf "%s" "$resp" | sed -n "$2" | head -1 | cut -d':' -f2 | sed 's/../&\n/g' | sed 's/^01$/9/g;s/^08$/0/g;s/^05$/=/g;s/^0a$/2/g;s/^0b$/3/g;s/^0c$/4/g;s/^07$/?/g;s/^00$/8/g;s/^5c$/d/g;s/^0f$/7/g;s/^5e$/f/g;s/^17$/\//g;s/^54$/l/g;s/^09$/1/g;s/^48$/p/g;s/^4f$/w/g;s/^0e$/6/g;s/^5b$/c/g;s/^5d$/e/g;s/^0d$/5/g;s/^53$/k/g;s/^1e$/\&/g;s/^5a$/b/g;s/^59$/a/g;s/^4a$/r/g;s/^4c$/t/g;s/^4e$/v/g;s/^57$/o/g;s/^51$/i/g;' | tr -d '\n' | sed "s/\/clock/\/clock\.json/")
+}
+
+generate_links() {
+    case $1 in
+        # using gogoanime as the default provider since it provides m3u8 links and bc --start doesn't work with mp4 links (idk why)
+        1) provider_init "gogoanime" "/Luf-mp4 :/p" ;; # gogoanime(m3u8)(multi)
+        2) provider_init "wixmp" "/Default :/p" ;;     # wixmp(default)(m3u8)(multi) -> (mp4)(multi)
+        3) provider_init "dropbox" "/Sak :/p" ;;       # dropbox(mp4)(single)
+        4) provider_init "wetransfer" "/Kir :/p" ;;    # wetransfer(mp4)(single)
+        5) provider_init "sharepoint" "/S-mp4 :/p" ;;  # sharepoint(mp4)(single)
+    esac
+    [ -n "$provider_id" ] && get_links "$provider_id"
+}
+
+select_quality() {
+    case "$1" in
+        best) result=$(printf "%s" "$links" | head -n1) ;;
+        worst) result=$(printf "%s" "$links" | grep -E '^[0-9]{3,4}' | tail -n1) ;;
+        *) result=$(printf "%s" "$links" | grep -m 1 "$1") ;;
+    esac
+    [ -z "$result" ] && printf "Specified quality not found, defaulting to best\n" 1>&2 && result=$(printf "%s" "$links" | head -n1)
+    printf "%s" "$result" | cut -d'>' -f2
+}
+
+#### GENERAL HELPER FUNCTIONS ####
 
 edit_configuration() {
     if [ -f "$config_file" ]; then
@@ -323,9 +379,9 @@ download_thumbnails() {
 image_preview_fzf() {
     UB_PID_FILE="/tmp/.$(uuidgen)"
     if [ -z "$ueberzug_output" ]; then
-        ueberzugpp layer --no-stdin --silent --use-escape-codes --pid-file "$UB_PID_FILE" 2> /dev/null
+        ueberzugpp layer --no-stdin --silent --use-escape-codes --pid-file "$UB_PID_FILE" 2>/dev/null
     else
-        ueberzugpp layer -o "$ueberzug_output" --no-stdin --silent --use-escape-codes --pid-file "$UB_PID_FILE" 2> /dev/null
+        ueberzugpp layer -o "$ueberzug_output" --no-stdin --silent --use-escape-codes --pid-file "$UB_PID_FILE" 2>/dev/null
     fi
     UB_PID="$(cat "$UB_PID_FILE")"
     JERRY_UEBERZUG_SOCKET=/tmp/ueberzugpp-"$UB_PID".socket
@@ -349,6 +405,10 @@ get_anime_from_list() {
         -H 'Content-Type: application/json' \
         -H "Authorization: Bearer $access_token" \
         -d "{\"query\":\"query(\$userId:Int,\$userName:String,\$type:MediaType){MediaListCollection(userId:\$userId,userName:\$userName,type:\$type){lists{name isCustomList isCompletedList:isSplitCompletedList entries{...mediaListEntry}}user{id name avatar{large}mediaListOptions{scoreFormat rowOrder animeList{sectionOrder customLists splitCompletedSectionByFormat theme}mangaList{sectionOrder customLists splitCompletedSectionByFormat theme}}}}}fragment mediaListEntry on MediaList{id mediaId status score progress progressVolumes repeat priority private hiddenFromStatusLists customLists advancedScores notes updatedAt startedAt{year month day}completedAt{year month day}media{id title{userPreferred romaji english native}coverImage{extraLarge large}type format status(version:2)episodes volumes chapters averageScore popularity isAdult countryOfOrigin genres bannerImage nextAiringEpisode{airingAt timeUntilAiring episode} startDate{year month day}}}\",\"variables\":{\"userId\":$user_id,\"type\":\"ANIME\"}}" | $sed "s@},{@\n@g" | $sed -nE "s@.*\"mediaId\":([0-9]*),\"status\":\"($1)\",\"score\":(.*),\"progress\":([0-9]*),.*\"userPreferred\":\"([^\"]*)\".*\"coverImage\":\{\"extraLarge\":\"([^\"]*)\".*\"episode([\"]*)s*[\"]*:([0-9]*).*@\6\t\1\t\5 \4|\8 episodes \7 \[\3\]@p" | $sed 's/\\\//\//g;s/\"/(releasing)/')
+    if [ -z "$anime_list" ]; then
+        send_notification "No anime found in your list" "2000"
+        exit 1
+    fi
     if [ "$use_external_menu" = 1 ]; then
         case "$image_preview" in
             "true" | 1)
@@ -467,6 +527,7 @@ search_anime_anilist() {
                 fi
             else
                 printf "%s" "Please enter the episode number (1-${episodes_total}): " && read -r progress
+                [ -z "$progress" ] && progress=$episodes_total
             fi
             if [ -z "$progress" ]; then
                 send_notification "Error" "1000" "$images_cache_dir/  $title $media_id.jpg" "No episode number provided"
@@ -740,6 +801,23 @@ get_anilist_info() {
 #### ANIME SCRAPING FUNCTIONS ####
 get_episode_info() {
     case "$provider" in
+        allanime)
+            query_title=$(printf "%s" "$title" | tr ' ' '+')
+            response=$(curl -e "$allanime_refr" -s -G "https://api.$allanime_base/api" --data-urlencode 'variables={"search":{"allowAdult":false,"allowUnknown":false,"query":"'"$query_title"'"},"limit":40,"page":1,"translationType":"sub","countryOrigin":"ALL"}' --data-urlencode 'query=query(        $search: SearchInput        $limit:Int        $page: Int        $translationType: VaildTranslationTypeEnumType        $countryOrigin: VaildCountryOriginEnumType    ) {    shows(        search: $search        limit: $limit        page: $page        translationType: $translationType        countryOrigin: $countryOrigin    ) {        edges {            _id name availableEpisodes __typename       }    }}' | sed 's|Show|\n|g' | sed -nE 's|.*_id":"([^"]*)","name":"([^"]*)".*sub":([1-9][^,]*).*|\1\t\2 (\3 episodes)|p')
+            [ -z "$response" ] && exit 1
+            # if it is only one line long, then auto select it
+            if [ "$(printf "%s\n" "$response" | wc -l)" -eq 1 ]; then
+                send_notification "Jerry" "" "" "Since there is only one result, it was automatically selected"
+                choice=$response
+            else
+                choice=$(printf "%s" "$response" | launcher "Choose anime: " 2)
+            fi
+            [ -z "$choice" ] && exit 1
+            title=$(printf "%s" "$choice" | cut -f2 | sed -E 's| \([0-9]* episodes\)||')
+            allanime_id=$(printf "%s" "$choice" | cut -f1)
+            episode_number=$((progress + 1))
+            episode_info=$(printf "%s\t%s" "$allanime_id" "$title")
+            ;;
         aniwatch)
             aniwatch_id=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/anime/${media_id}.json" |
                 tr -d '\n ' | tr '}' '\n' | $sed -nE "s@.*\"Zoro\".*\"url\":\".*-([0-9]*)\".*@\1@p")
@@ -748,7 +826,7 @@ get_episode_info() {
         yugen)
             href=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/anime/${media_id}.json" |
                 tr -d '\n' | tr '}' '\n' | $sed -nE 's@.*"YugenAnime".*"url": *"([^"]*)".*@\1@p')
-	    tmp_episode_info=$(curl -s "${href}watch/?page=$(((progress + 1) / 49 + 1))" | $sed -nE "s@.*href=\"/([^\"]*)\" title=\"([^\"]*)\".*@\1\t\2@p" | $sed -nE "s@(.*[[:space:]]$((progress + 1)) :)@\1@p")
+            tmp_episode_info=$(curl -s "${href}watch/?page=$(((progress + 1) / 49 + 1))" | $sed -nE "s@.*href=\"/([^\"]*)\" title=\"([^\"]*)\".*@\1\t\2@p" | $sed -nE "s@(.*[[:space:]]$((progress + 1)) :)@\1@p")
             tmp_href=$(printf "%s" "$tmp_episode_info" | cut -f1)
             ep_title=$(printf "%s" "$tmp_episode_info" | cut -f2)
             if [ "$dub" = true ]; then
@@ -774,20 +852,49 @@ get_episode_info() {
             cr_href=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/anime/${media_id}.json" |
                 tr -d '\n ' | tr '}' '\n' | $sed -nE "s@.*\"Crunchyroll\".*\"url\":\"([^\"]*)\".*@\1@p" | head -1)
             cr_id=$(printf "%s" "$cr_href" | sed -nE "s@.*/([^\/]*)/.*@\1@p")
-            access_token=$(curl -s -X POST -H "Authorization: Basic Y3Jfd2ViOg==" -d "grant_type=client_id&scope=offline_access" "https://www.crunchyroll.com/auth/v1/token" |  sed -nE "s@.*\"access_token\":\"([^\"]*)\".*@\1@p")
+            access_token=$(curl -s -X POST -H "Authorization: Basic Y3Jfd2ViOg==" -d "grant_type=client_id&scope=offline_access" "https://www.crunchyroll.com/auth/v1/token" | sed -nE "s@.*\"access_token\":\"([^\"]*)\".*@\1@p")
             season_id=$(curl -s "https://www.crunchyroll.com/content/v2/cms/series/${cr_id}/seasons" \
-              -H "authorization: Bearer ${access_token}" | sed -nE "s@.*\"id\":\"([^\"]*)\".*@\1@p")
+                -H "authorization: Bearer ${access_token}" | sed -nE "s@.*\"id\":\"([^\"]*)\".*@\1@p")
             response=$(curl -s "https://www.crunchyroll.com/content/v2/cms/seasons/${season_id}/episodes" \
-              -H "authorization: Bearer ${access_token}" | sed "s/},{/\n/g")
+                -H "authorization: Bearer ${access_token}" | sed "s/},{/\n/g")
             title=$(printf "%s" "$response" | sed -nE "s@.*\"title\":\"([^\"]*)\".*@\1@p" | sed -n "$((progress + 1))p")
             eid=$(printf "%s\n" "$response" | sed -nE "s@.*\"id\":\"([^\"]*)\".*@\1@p" | sed -n $((progress + 1))p)
             episode_info="$(printf "%s\t%s" "$eid" "$title")"
-          ;;
+            ;;
     esac
 }
 
 extract_from_json() {
     case "$provider" in
+        allanime)
+            resp=$(printf "%s" "$json_data" | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*sourceUrl":"--([^"]*)".*sourceName":"([^"]*)".*|\2 :\1|p')
+            # generate links into sequential files
+            cache_dir="$(mktemp -d)"
+            providers="1 2 3 4 5"
+            for provider in $providers; do
+                generate_links "$provider" >"$cache_dir"/"$provider" &
+            done
+            wait
+            # select the link with matching quality
+            links=$(cat "$cache_dir"/* | sed 's|^Mp4-||g;/http/!d' | sort -g -r -s)
+            if [ "$json_output" = "1" ]; then
+                printf '{\n'
+                for file in $cache_dir/*; do
+                    if [ -s "$file" ]; then
+                        provider=$(basename "$file")
+                        printf '  "%s": {\n' "provider_$provider"
+                        cat $file | while read -r quality url; do
+                            printf '    "%s": "%s",\n' "$quality" "${url#>}"
+                        done
+                        [ "$provider" = "5" ] && printf '  }\n' || printf '  },\n'
+                    fi
+                done
+                printf '}'
+                exit 0
+            fi
+            video_link=$(select_quality "$quality")
+            rm -r "$cache_dir"
+            ;;
         aniwatch)
             json_key="file"
             encrypted=$(printf "%s" "$json_data" | tr "{}" "\n" | $sed -nE "s_.*\"${json_key}\":\"([^\"]*)\".*_\1_p" | grep "\.m3u8")
@@ -797,8 +904,8 @@ extract_from_json() {
                 json_key="sources"
                 encrypted=$(printf "%s" "$json_data" | tr "{}" "\n" | $sed -nE "s_.*\"${json_key}\":\"([^\"]*)\".*_\1_p")
                 embed_type="6"
-								enikey=$(curl -s "http://zoro-keys.freeddns.org/keys/e${embed_type}/key.txt" | tr -d ' ' |
-									$sed 's/\[\([0-9]*\),\([0-9]*\)\]/\1-\2/g;s/\[//g;s/\]//g;s/,/ /g')
+                enikey=$(curl -s "http://zoro-keys.freeddns.org/keys/e${embed_type}/key.txt" | tr -d ' ' |
+                    $sed 's/\[\([0-9]*\),\([0-9]*\)\]/\1-\2/g;s/\[//g;s/\]//g;s/,/ /g')
 
                 encrypted_video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | $sed -nE "s_.*\"sources\":\"([^\"]*)\".*_\1_p" | head -1)
 
@@ -883,15 +990,14 @@ extract_from_json() {
 }
 
 get_json() {
+    [ "$dub" = true ] && translation_type="dub" || translation_type="sub"
     case "$provider" in
+        allanime)
+            json_data=$(curl -e "$allanime_refr" -s -G "https://api.$allanime_base/api" --data-urlencode 'variables={"showId":"'"$episode_id"'","translationType":"'"$translation_type"'","episodeString":"'"$episode_number"'"}' --data-urlencode 'query=query ($showId: String!, $translationType: VaildTranslationTypeEnumType!, $episodeString: String!) {    episode(        showId: $showId        translationType: $translationType        episodeString: $episodeString    ) {        episodeString sourceUrls    }}')
+            ;;
         aniwatch)
-            if [ "$dub" = true ]; then
-                source_id=$(curl -s "https://aniwatch.to/ajax/v2/episode/servers?episodeId=$episode_id" |
-                    $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"dub\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
-            else
-                source_id=$(curl -s "https://aniwatch.to/ajax/v2/episode/servers?episodeId=$episode_id" |
-                    $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"sub\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
-            fi
+            source_id=$(curl -s "https://aniwatch.to/ajax/v2/episode/servers?episodeId=$episode_id" |
+                $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"$translation_type\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
             [ -z "$source_id" ] && source_id=$(curl -s "https://aniwatch.to/ajax/v2/episode/servers?episodeId=$episode_id" |
                 $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"raw\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
             embed_link=$(curl -s "https://aniwatch.to/ajax/v2/episode/sources?id=$source_id" | $sed -nE "s_.*\"link\":\"([^\"]*)\".*_\1_p")
@@ -921,7 +1027,7 @@ get_json() {
             episode_id=$((progress + 1))
             json_data=$(curl -s -X POST "https://hdrezka.website/ajax/get_cdn_series/" -A "uwu" --data-raw "id=${data_id}&translator_id=${translator_id}&season=${season_id}&episode=${episode_id}&action=get_stream" --compressed)
             ;;
-          crunchyroll)
+        crunchyroll)
             if [ -n "$cr_token" ]; then
                 video_link=$("$cr_wrapper" --eid "$episode_id" --token "$cr_token")
             else
@@ -1005,16 +1111,10 @@ add_to_history() {
 
 play_video() {
     case "$provider" in
-        aniwatch)
-            displayed_episode_title="Ep $((progress + 1)) $episode_title"
-            ;;
-        yugen)
-            displayed_episode_title="Ep $episode_title"
-            ;;
-    esac
-    case "$provider" in
+        aniwatch) displayed_title="$title - Ep $((progress + 1)) $episode_title" ;;
+        yugen) displayed_title="$title - Ep $episode_title" ;;
         hdrezka) displayed_title="$episode_title - Ep $((progress + 1))" ;;
-        *) displayed_title="$title - $displayed_episode_title" ;;
+        *) displayed_title="$title - Ep $((progress + 1))" ;;
     esac
     case $player in
         mpv)
@@ -1351,11 +1451,11 @@ while [ $# -gt 0 ]; do
         -w | --website)
             provider="$2"
             if [ -z "$provider" ]; then
-                provider="aniwatch"
+                provider="allanime"
                 shift
             else
                 if [ "${provider#-}" != "$provider" ]; then
-                    provider="aniwatch"
+                    provider="allanime"
                     shift
                 else
                     shift 2
@@ -1376,6 +1476,11 @@ done
 check_update "A new update is out. Would you like to update jerry? [Y/n] "
 query="$(printf "%s" "$query" | tr ' ' '-' | $sed "s/^-//g")"
 case "$provider" in
+    allanime)
+        provider="allanime"
+        allanime_refr="https://allanime.to"
+        allanime_base="allanime.day"
+        ;;
     zoro | kaido | aniwatch) provider="aniwatch" ;;
     yugen | yugenanime) provider="yugen" ;;
     hdrezka | rezka) provider="hdrezka" ;;
