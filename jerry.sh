@@ -889,7 +889,7 @@ extract_from_json() {
                         [ "$provider" = "5" ] && printf '  }\n' || printf '  },\n'
                     fi
                 done
-                printf '}'
+                printf '}\n'
                 exit 0
             fi
             video_link=$(select_quality "$quality")
