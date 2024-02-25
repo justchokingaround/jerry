@@ -11,7 +11,7 @@ tmp_position="/tmp/jerry_position"
 cleanup() {
     # tput clear
     rm -rf "$tmp_dir" 2>/dev/null
-    if [ "$image_preview" = "1" ] && [ "$use_external_menu" = "0" ]; then
+    if [ "$image_preview" = true ] && [ "$use_external_menu" = false ]; then
         killall ueberzugpp 2>/dev/null
         rm /tmp/ueberzugpp-* 2>/dev/null
     fi
@@ -29,8 +29,8 @@ case "$(uname -s)" in
 esac
 command -v notify-send >/dev/null 2>&1 && notify="true" || notify="false"
 send_notification() {
-    [ "$json_output" = 1 ] && return
-    if [ "$use_external_menu" = "0" ] || [ "$use_external_menu" = "" ]; then
+    [ "$json_output" = true ] && return
+    if [ "$use_external_menu" = false ] || [ -z "$use_external_menu" ]; then
         [ -z "$4" ] && printf "\33[2K\r\033[1;34m%s\n\033[0m" "$1" && return
         [ -n "$4" ] && printf "\33[2K\r\033[1;34m%s - %s\n\033[0m" "$1" "$4" && return
     fi
@@ -47,7 +47,7 @@ dep_ch() {
 }
 dep_ch "grep" "$sed" "curl" "fzf" "mpv" || true
 
-if [ "$use_external_menu" = "1" ]; then
+if [ "$use_external_menu" = true ]; then
     dep_ch "rofi" || true
 fi
 
@@ -115,14 +115,12 @@ configuration() {
     [ -z "$history_file" ] && history_file="$data_dir/jerry_history.txt"
     [ -z "$subs_language" ] && subs_language="english"
     subs_language="$(printf "%s" "$subs_language" | cut -c2-)"
-    [ -z "$use_external_menu" ] && use_external_menu=0
-    [ -z "$image_preview" ] && image_preview=0
-    [ -z "$json_output" ] && json_output=0
+    [ -z "$use_external_menu" ] && use_external_menu=false
+    [ -z "$image_preview" ] && image_preview=false
+    [ -z "$json_output" ] && json_output=false
     [ -z "$dub" ] && dub="false"
     [ -z "$score_on_completion" ] && score_on_completion="false"
-    if [ "$no_anilist" = 0 ] || [ "$no_anilist" = "false" ]; then
-        no_anilist=""
-    fi
+    [ "$no_anilist" = false ] && no_anilist=""
     [ -z "$discord_presence" ] && discord_presence="false"
     [ -z "$presence_script_path" ] && presence_script_path="jerrydiscordpresence.py"
 }
@@ -261,7 +259,7 @@ check_update() {
     update=$(curl -s "https://raw.githubusercontent.com/justchokingaround/jerry/main/jerry.sh")
     update="$(printf '%s\n' "$update" | diff -u "$(command -v jerry)" - 2>/dev/null)"
     if [ -n "$update" ]; then
-        if [ "$use_external_menu" = 0 ] || [ "$use_external_menu" = "false" ]; then
+        if [ "$use_external_menu" = false ] ; then
             printf "%s" "$1" && read -r answer
         else
             answer=$(printf "Yes\nNo" | launcher "$1")
@@ -273,7 +271,7 @@ check_update() {
 }
 
 get_input() {
-    if [ "$use_external_menu" = "0" ]; then
+    if [ "$use_external_menu" = false ]; then
         printf "%s" "$1" && read -r query
     else
         if [ -n "$rofi_prompt_config" ]; then
@@ -297,7 +295,7 @@ EOF
 
 launcher() {
     case "$use_external_menu" in
-        1)
+        true)
             [ -z "$2" ] && rofi -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "$1" -matching fuzzy -sorting-method fzf
             [ -n "$2" ] && rofi -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "$1" -display-columns "$2" -matching fuzzy -sorting-method fzf
             ;;
@@ -368,7 +366,7 @@ hdrezka_data_and_translation_id() {
 download_thumbnails() {
     printf "%s\n" "$1" | while read -r cover_url media_id title; do
         curl -s -o "$images_cache_dir/  $title $media_id.jpg" "$cover_url" &
-        if [ "$use_external_menu" = "1" ]; then
+        if [ "$use_external_menu" = true ]; then
             entry=/tmp/jerry/applications/"$media_id.desktop"
             generate_desktop "$title" "$images_cache_dir/  $title $media_id.jpg" >"$entry" &
         fi
@@ -390,7 +388,7 @@ image_preview_fzf() {
 }
 
 select_desktop_entry() {
-    if [ "$use_external_menu" = "1" ]; then
+    if [ "$use_external_menu" = true ]; then
         [ -n "$image_config_path" ] && choice=$(rofi -show drun -drun-categories jerry -filter "$1" -show-icons -theme "$image_config_path" -i -matching fuzzy -sorting-method fzf |
             $sed -nE "s@.*/([0-9]*)\.desktop@\1@p") 2>/dev/null ||
             choice=$(rofi -show drun -drun-categories jerry -filter "$1" -show-icons -i -matching fuzzy -sorting-method fzf | $sed -nE "s@.*/([0-9]*)\.desktop@\1@p") 2>/dev/null
@@ -409,9 +407,9 @@ get_anime_from_list() {
         send_notification "No anime found in your list" "2000"
         exit 1
     fi
-    if [ "$use_external_menu" = 1 ]; then
+    if [ "$use_external_menu" = true ]; then
         case "$image_preview" in
-            "true" | 1)
+            true)
                 download_thumbnails "$anime_list" "2"
                 select_desktop_entry ""
                 [ -z "$choice" ] && exit 1
@@ -436,7 +434,7 @@ get_anime_from_list() {
         esac
     else
         case "$image_preview" in
-            "true" | 1)
+            true)
                 download_thumbnails "$anime_list" "2"
                 select_desktop_entry ""
                 [ -z "$choice" ] && exit 0
@@ -466,9 +464,9 @@ search_anime_anilist() {
         -H 'Content-Type: application/json' \
         -d "{\"query\":\"query(\$page:Int = 1 \$id:Int \$type:MediaType \$isAdult:Boolean = false \$search:String \$format:[MediaFormat]\$status:MediaStatus \$countryOfOrigin:CountryCode \$source:MediaSource \$season:MediaSeason \$seasonYear:Int \$year:String \$onList:Boolean \$yearLesser:FuzzyDateInt \$yearGreater:FuzzyDateInt \$episodeLesser:Int \$episodeGreater:Int \$durationLesser:Int \$durationGreater:Int \$chapterLesser:Int \$chapterGreater:Int \$volumeLesser:Int \$volumeGreater:Int \$licensedBy:[Int]\$isLicensed:Boolean \$genres:[String]\$excludedGenres:[String]\$tags:[String]\$excludedTags:[String]\$minimumTagRank:Int \$sort:[MediaSort]=[POPULARITY_DESC,SCORE_DESC]){Page(page:\$page,perPage:20){pageInfo{total perPage currentPage lastPage hasNextPage}media(id:\$id type:\$type season:\$season format_in:\$format status:\$status countryOfOrigin:\$countryOfOrigin source:\$source search:\$search onList:\$onList seasonYear:\$seasonYear startDate_like:\$year startDate_lesser:\$yearLesser startDate_greater:\$yearGreater episodes_lesser:\$episodeLesser episodes_greater:\$episodeGreater duration_lesser:\$durationLesser duration_greater:\$durationGreater chapters_lesser:\$chapterLesser chapters_greater:\$chapterGreater volumes_lesser:\$volumeLesser volumes_greater:\$volumeGreater licensedById_in:\$licensedBy isLicensed:\$isLicensed genre_in:\$genres genre_not_in:\$excludedGenres tag_in:\$tags tag_not_in:\$excludedTags minimumTagRank:\$minimumTagRank sort:\$sort isAdult:\$isAdult){id title{userPreferred}coverImage{extraLarge large color}startDate{year month day}endDate{year month day}bannerImage season seasonYear description type format status(version:2)episodes duration chapters volumes genres isAdult averageScore popularity nextAiringEpisode{airingAt timeUntilAiring episode}mediaListEntry{id status}studios(isMain:true){edges{isMain node{id name}}}}}}\",\"variables\":{\"page\":1,\"type\":\"ANIME\",\"sort\":\"SEARCH_MATCH\",\"search\":\"$1\"}}" | $sed "s@edges@\n@g" | $sed -nE "s@.*\"id\":([0-9]*),.*\"userPreferred\":\"(.*)\"\},\"coverImage\":.*\"extraLarge\":\"([^\"]*)\".*\"episode([\"]*)s*[\"]*:([0-9]*).*@\3\t\1\t\2 \5 episodes \4@p" | $sed 's/\\\//\//g;s/\"/(releasing)/')
 
-    if [ "$use_external_menu" = 1 ]; then
+    if [ "$use_external_menu" = true ]; then
         case "$image_preview" in
-            "true" | 1)
+            true)
                 download_thumbnails "$anime_list" "2"
                 select_desktop_entry ""
                 [ -z "$choice" ] && exit 1
@@ -489,7 +487,7 @@ search_anime_anilist() {
         esac
     else
         case "$image_preview" in
-            "true" | 1)
+            true)
                 download_thumbnails "$anime_list" "2"
                 select_desktop_entry ""
                 [ -z "$choice" ] && exit 0
@@ -519,7 +517,7 @@ search_anime_anilist() {
             progress=0
         else
             [ -z "$episodes_total" ] && episodes_total=9999
-            if [ "$use_external_menu" = 1 ]; then
+            if [ "$use_external_menu" = true ]; then
                 if [ -n "$rofi_prompt_config" ]; then
                     progress=$(printf "" | rofi -theme "$rofi_prompt_config" -sort -dmenu -i -width 1500 -p "" -mesg "Please enter the episode number (1-${episodes_total}): ")
                 else
@@ -557,7 +555,7 @@ update_episode_from_list() {
 
     send_notification "Current progress: $progress/$episodes_total episodes watched" "5000"
 
-    if [ "$use_external_menu" = "0" ]; then
+    if [ "$use_external_menu" = false ]; then
         printf "Enter a new episode number: "
         read -r new_episode_number
     else
@@ -586,9 +584,9 @@ get_manga_from_list() {
         -d "{\"query\":\"query(\$userId:Int,\$userName:String,\$type:MediaType){MediaListCollection(userId:\$userId,userName:\$userName,type:\$type){lists{name isCustomList isCompletedList:isSplitCompletedList entries{...mediaListEntry}}user{id name avatar{large}mediaListOptions{scoreFormat rowOrder animeList{sectionOrder customLists splitCompletedSectionByFormat theme}mangaList{sectionOrder customLists splitCompletedSectionByFormat theme}}}}}fragment mediaListEntry on MediaList{id mediaId status score progress progressVolumes repeat priority private hiddenFromStatusLists customLists advancedScores notes updatedAt startedAt{year month day}completedAt{year month day}media{id title{userPreferred romaji english native}coverImage{extraLarge large}type format status(version:2)episodes volumes chapters averageScore popularity isAdult countryOfOrigin genres bannerImage startDate{year month day}}}\",\"variables\":{\"userId\":$user_id,\"type\":\"MANGA\"}}" |
         tr "\[|\]" "\n" | $sed -nE "s@.*\"mediaId\":([0-9]*),\"status\":\"$1\",\"score\":(.*),\"progress\":([0-9]*),.*\"userPreferred\":\"([^\"]*)\".*\"coverImage\":\{\"extraLarge\":\"([^\"]*)\".*\"chapters\":([0-9]*).*@\5\t\1\t\4 \3|\6 chapters \[\2\]@p" | $sed 's/\\\//\//g')
 
-    if [ "$use_external_menu" = 1 ]; then
+    if [ "$use_external_menu" = true ]; then
         case "$image_preview" in
-            "true" | 1)
+            true)
                 download_thumbnails "$manga_list" "2"
                 select_desktop_entry ""
                 [ -z "$choice" ] && exit 1
@@ -611,7 +609,7 @@ get_manga_from_list() {
         esac
     else
         case "$image_preview" in
-            "true" | 1)
+            true)
                 download_thumbnails "$manga_list" "2"
                 select_desktop_entry ""
                 [ -z "$choice" ] && exit 0
@@ -640,9 +638,9 @@ search_manga_anilist() {
         -d "{\"query\":\"query(\$page:Int = 1 \$id:Int \$type:MediaType \$isAdult:Boolean = false \$search:String \$format:[MediaFormat]\$status:MediaStatus \$countryOfOrigin:CountryCode \$source:MediaSource \$season:MediaSeason \$seasonYear:Int \$year:String \$onList:Boolean \$yearLesser:FuzzyDateInt \$yearGreater:FuzzyDateInt \$episodeLesser:Int \$episodeGreater:Int \$durationLesser:Int \$durationGreater:Int \$chapterLesser:Int \$chapterGreater:Int \$volumeLesser:Int \$volumeGreater:Int \$licensedBy:[Int]\$isLicensed:Boolean \$genres:[String]\$excludedGenres:[String]\$tags:[String]\$excludedTags:[String]\$minimumTagRank:Int \$sort:[MediaSort]=[POPULARITY_DESC,SCORE_DESC]){Page(page:\$page,perPage:20){pageInfo{total perPage currentPage lastPage hasNextPage}media(id:\$id type:\$type season:\$season format_in:\$format status:\$status countryOfOrigin:\$countryOfOrigin source:\$source search:\$search onList:\$onList seasonYear:\$seasonYear startDate_like:\$year startDate_lesser:\$yearLesser startDate_greater:\$yearGreater episodes_lesser:\$episodeLesser episodes_greater:\$episodeGreater duration_lesser:\$durationLesser duration_greater:\$durationGreater chapters_lesser:\$chapterLesser chapters_greater:\$chapterGreater volumes_lesser:\$volumeLesser volumes_greater:\$volumeGreater licensedById_in:\$licensedBy isLicensed:\$isLicensed genre_in:\$genres genre_not_in:\$excludedGenres tag_in:\$tags tag_not_in:\$excludedTags minimumTagRank:\$minimumTagRank sort:\$sort isAdult:\$isAdult){id title{userPreferred}coverImage{extraLarge large color}startDate{year month day}endDate{year month day}bannerImage season seasonYear description type format status(version:2)episodes duration chapters volumes genres isAdult averageScore popularity nextAiringEpisode{airingAt timeUntilAiring episode}mediaListEntry{id status}studios(isMain:true){edges{isMain node{id name}}}}}}\",\"variables\":{\"page\":1,\"type\":\"MANGA\",\"sort\":\"SEARCH_MATCH\",\"search\":\"$1\"}}" |
         tr "\[\]" "\n" | $sed -nE "s@.*\"id\":([0-9]*),.*\"userPreferred\":\"(.*)\"\},\"coverImage\":.*\"extraLarge\":\"([^\"]*)\".*\"chapters\":([^,]*),.*@\3\t\1\t\2 \4 chapters@p" | $sed 's/\\\//\//g;s/null/?/')
 
-    if [ "$use_external_menu" = 1 ]; then
+    if [ "$use_external_menu" = true ]; then
         case "$image_preview" in
-            "true" | 1)
+            true)
                 download_thumbnails "$manga_list" "2"
                 select_desktop_entry ""
                 [ -z "$choice" ] && exit 1
@@ -661,7 +659,7 @@ search_manga_anilist() {
         esac
     else
         case "$image_preview" in
-            "true" | 1)
+            true)
                 download_thumbnails "$manga_list" "2"
                 select_desktop_entry ""
                 [ -z "$choice" ] && exit 0
@@ -692,7 +690,7 @@ update_chapter_from_list() {
 
     send_notification "Current progress: $progress/$chapters_total chapters read" "5000"
 
-    if [ "$use_external_menu" = "0" ]; then
+    if [ "$use_external_menu" = false ]; then
         printf "Enter a new chapters read number: "
         read -r new_chapter_number
     else
@@ -750,7 +748,7 @@ update_score() {
     fi
     send_notification "Enter new score for: \"$title\"" "5000"
     send_notification "Current score: $score" "5000"
-    if [ "$use_external_menu" = "0" ]; then
+    if [ "$use_external_menu" = false ]; then
         printf "Enter new score: "
         read -r new_score
     else
@@ -787,7 +785,7 @@ get_anilist_info() {
         -H 'Content-Type: application/json' \
         -d "{\"query\":\"query media(\$id:Int,\$type:MediaType,\$isAdult:Boolean){Media(id:\$id,type:\$type,isAdult:\$isAdult){id title{userPreferred romaji english native}coverImage{extraLarge large}bannerImage startDate{year month day}endDate{year month day}description season seasonYear type format status(version:2)episodes duration chapters volumes genres synonyms source(version:3)isAdult isLocked meanScore averageScore popularity favourites isFavouriteBlocked hashtag countryOfOrigin isLicensed isFavourite isRecommendationBlocked isFavouriteBlocked isReviewBlocked nextAiringEpisode{airingAt timeUntilAiring episode}relations{edges{id relationType(version:2)node{id title{userPreferred}format type status(version:2)bannerImage coverImage{large}}}}characterPreview:characters(perPage:6,sort:[ROLE,RELEVANCE,ID]){edges{id role name voiceActors(language:JAPANESE,sort:[RELEVANCE,ID]){id name{userPreferred}language:languageV2 image{large}}node{id name{userPreferred}image{large}}}}staffPreview:staff(perPage:8,sort:[RELEVANCE,ID]){edges{id role node{id name{userPreferred}language:languageV2 image{large}}}}studios{edges{isMain node{id name}}}reviewPreview:reviews(perPage:2,sort:[RATING_DESC,ID]){pageInfo{total}nodes{id summary rating ratingAmount user{id name avatar{large}}}}recommendations(perPage:7,sort:[RATING_DESC,ID]){pageInfo{total}nodes{id rating userRating mediaRecommendation{id title{userPreferred}format type status(version:2)bannerImage coverImage{large}}user{id name avatar{large}}}}externalLinks{id site url type language color icon notes isDisabled}streamingEpisodes{site title thumbnail url}trailer{id site}rankings{id rank type format year season allTime context}tags{id name description rank isMediaSpoiler isGeneralSpoiler userId}mediaListEntry{id status score}stats{statusDistribution{status amount}scoreDistribution{score amount}}}}\",\"variables\":{\"id\":$media_id,\"type\":\"$1\"}}" |
         jq -r '.data.Media.description' | $sed "s/<br>/\n/g")"
-    if [ "$use_external_menu" = 1 ]; then
+    if [ "$use_external_menu" = true ]; then
         if ! command -v "zenity" >/dev/null; then
             send_notification "For this feature to work in the rofi mode, you must have zenity installed."
             exit 1
@@ -877,7 +875,7 @@ extract_from_json() {
             wait
             # select the link with matching quality
             links=$(cat "$cache_dir"/* | sed 's|^Mp4-||g;/http/!d' | sort -g -r -s)
-            if [ "$json_output" = "1" ]; then
+            if [ "$json_output" = true ]; then
                 printf '{\n'
                 for file in $cache_dir/*; do
                     if [ -s "$file" ]; then
@@ -927,7 +925,7 @@ extract_from_json() {
             fi
             [ -n "$quality" ] && video_link=$(printf "%s" "$video_link" | $sed -e "s|/playlist.m3u8|/$quality/index.m3u8|")
 
-            if [ "$json_output" = "1" ]; then
+            if [ "$json_output" = true ]; then
                 printf "%s\n" "$json_data"
                 exit 0
             fi
@@ -942,7 +940,7 @@ extract_from_json() {
             [ -z "$subs_links" ] && send_notification "No subtitles found"
             ;;
         yugen)
-            if [ "$json_output" = "1" ]; then
+            if [ "$json_output" = true ]; then
                 printf "%s\n" "$json_data"
                 exit 0
             fi
@@ -973,7 +971,7 @@ extract_from_json() {
             video_links=$(printf "%s" "$encrypted_video_link" | sed 's/_//g' | base64 -d | tr ',' '\n' | sed -nE "s@\[([^\]*)\](.*)@\"\1\":\"\2\",@p")
             video_links_json=$(printf "%s" "$video_links" | tr -d '\n' | sed "s/,$//g")
             json_data=$(printf "%s" "$json_data" | sed -E "s@\"url\":\"[^\"]*\"@\"url\":\{$video_links_json\}@")
-            if [ "$json_output" = "1" ]; then
+            if [ "$json_output" = true ]; then
                 printf "%s\n" "$json_data"
                 exit 0
             fi
@@ -1055,7 +1053,7 @@ get_manga_json() {
     case "$manga_provider" in
         mangadex)
             json_data=$(curl -s "https://api.mangadex.org/at-home/server/$chapter_id" | $sed "s/\\\//g")
-            if [ "$json_output" = "1" ]; then
+            if [ "$json_output" = true ]; then
                 printf "%s\n" "$json_data"
                 exit 0
             fi
@@ -1390,11 +1388,11 @@ while [ $# -gt 0 ]; do
             usage && exit 0
             ;;
         -i | --image-preview)
-            image_preview=1
+            image_preview=true
             shift
             ;;
         -j | --json)
-            json_output=1
+            json_output=true
             no_anilist=1
             shift
             ;;
@@ -1420,7 +1418,7 @@ while [ $# -gt 0 ]; do
             ;;
         --no-anilist) no_anilist=1 && shift ;;
         --rofi | --dmenu | --external-menu)
-            use_external_menu="1"
+            use_external_menu=true
             shift
             ;;
         -q | --quality)
@@ -1487,9 +1485,9 @@ case "$provider" in
     crunchyroll | cr) provider="crunchyroll" ;;
     *) send_notification "Invalid provider" && exit 1 ;;
 esac
-if [ "$image_preview" = 1 ]; then
+if [ "$image_preview" = true ]; then
     test -d "$images_cache_dir" || mkdir -p "$images_cache_dir"
-    if [ "$use_external_menu" = 1 ]; then
+    if [ "$use_external_menu" = true ]; then
         mkdir -p "/tmp/jerry/applications/"
         [ ! -L "$applications" ] && ln -sf "/tmp/jerry/applications/" "$applications"
     fi
