@@ -2,6 +2,7 @@
 import subprocess
 import sys
 import re
+import os
 
 import httpx
 from pypresence import Presence
@@ -56,7 +57,10 @@ process = subprocess.Popen(
     args
 )
 
-file_path = '/tmp/jerry_position'
+if sys.platform == 'win32':
+    file_path = os.path.join(os.environ['LocalAppData'], 'Temp', 'jerry_position')
+else:
+    file_path = '/tmp/jerry_position'
 
 while True:
     with open(file_path, 'r') as file:
