@@ -824,7 +824,7 @@ get_episode_info() {
         yugen)
             href=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/anime/${media_id}.json" |
                 tr -d '\n' | tr '}' '\n' | $sed -nE 's@.*"YugenAnime".*"url": *"([^"]*)".*@\1@p')
-            tmp_episode_info=$(curl -s "${href}watch/?page=$(((progress + 1) / 49 + 1))" | $sed -nE "s@.*href=\"/([^\"]*)\" title=\"([^\"]*)\".*@\1\t\2@p" | $sed -nE "s@(.*[[:space:]]$((progress + 1)) :)@\1@p")
+            tmp_episode_info=$(curl -s "${href}watch/?page=$(((progress) / 48 + 1))" | $sed -nE "s@.*href=\"/([^\"]*)\" title=\"([^\"]*)\".*@\1\t\2@p" | $sed -nE "s@(.*[[:space:]]$((progress + 1)) :)@\1@p")
             tmp_href=$(printf "%s" "$tmp_episode_info" | cut -f1)
             ep_title=$(printf "%s" "$tmp_episode_info" | cut -f2)
             if [ "$dub" = true ]; then
@@ -1255,19 +1255,16 @@ binge() {
             send_notification "Please only select Yes if you have finished watching the episode" "5000"
             binge_watching=$(printf "Yes\nNo" | launcher "Do you want to keep binge watching? [Y/n] ")
             case $binge_watching in
-                "Yes" | "yes" | "y" | "Y")
-                    progress=$((progress + 1))
-                    resume_from=""
-                    continue
-                    ;;
-                "No" | "no" | "n" | "N") break ;;
+                [Nn]*) break ;;
             esac
+            progress=$((progress + 1))
+            resume_from=""
             sleep 1
         elif [ "$1" = "MANGA" ]; then
             read_manga_choice
             [ $((progress + 1)) = "$chapters_total" ] && break
             case $completed_chapter in
-                "No" | "no" | "n" | "N") break ;;
+                [Nn]*) break ;;
             esac
             sleep 1
         else
