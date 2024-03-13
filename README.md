@@ -16,7 +16,7 @@ But the script also has a lot of other features, which you can find in the featu
 
 ---
 ## Table of Contents
-- [Features](#features)
+- [Features](#features-please-check-the-wiki-for-configuration-information)
 - [Installation](#installation)
 - [Usage](#usage)
 - [Configuration](#configuration)
@@ -167,7 +167,7 @@ For more information on the configuration file, please check the wiki.
 - fzf
 - mpv (Video Player)
 - rofi (optional)
-- ueberuzgpp (image preview in fzf) (optional)
+- ueberzugpp (image preview in fzf) (optional)
 - jq (for displaying anime/manga info) (optional)
 
 ## Credits
