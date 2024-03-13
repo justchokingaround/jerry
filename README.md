@@ -171,4 +171,4 @@ For more information on the configuration file, please check the wiki.
 - jq (for displaying anime/manga info) (optional)
 
 ## Credits
-- Anilist API: https://anilist.co/api/
+- Anilist API: [https://anilist.co/api/](https://anilist.gitbook.io/anilist-apiv2-docs)https://anilist.gitbook.io/anilist-apiv2-docs
