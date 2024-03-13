@@ -68,7 +68,7 @@ usage() {
     -h, --help
       Show this help message and exit
     -i, --image-preview
-      Allows image preveiw in fzf and rofi (Note: for image preview using fzf, ueberzugpp must be installed)
+      Allows image preveiw in fzf and rofi
     -j, --json
       Outputs the json containing video links, subtitle links, referrers etc. to stdout
     -l, --language
@@ -375,6 +375,7 @@ download_thumbnails() {
 }
 
 image_preview_fzf() {
+  if [ -n "$use_ueberzugpp" ]; then
     UB_PID_FILE="/tmp/.$(uuidgen)"
     if [ -z "$ueberzug_output" ]; then
         ueberzugpp layer --no-stdin --silent --use-escape-codes --pid-file "$UB_PID_FILE" 2>/dev/null
@@ -385,6 +386,9 @@ image_preview_fzf() {
     JERRY_UEBERZUG_SOCKET=/tmp/ueberzugpp-"$UB_PID".socket
     choice=$(find "$images_cache_dir" -type f -exec basename {} \; | fzf -i -q "$1" --cycle --preview-window="$preview_window_size" --preview="ueberzugpp cmd -s $JERRY_UEBERZUG_SOCKET -i fzfpreview -a add -x $ueberzug_x -y $ueberzug_y --max-width $ueberzug_max_width --max-height $ueberzug_max_height -f $images_cache_dir/{}" --reverse --with-nth 1..-2 -d " ")
     ueberzugpp cmd -s "$JERRY_UEBERZUG_SOCKET" -a exit
+  else
+    choice=$(find "$images_cache_dir" -type f -exec basename {} \; | fzf -i -q "$1" --cycle --preview-window="$preview_window_size" --preview="chafa -f sixel $images_cache_dir/{} $chafa_options" --reverse --with-nth 1..-2 -d " ")
+  fi
 }
 
 select_desktop_entry() {
