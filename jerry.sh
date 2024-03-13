@@ -208,7 +208,7 @@ edit_configuration() {
     else
         printf "No configuration file found. Would you like to generate a default one? [Y/n] " && read -r generate
         case "$generate" in
-            "No" | "no" | "n" | "N") exit 0 ;;
+            [Nn]*) exit 0 ;;
             *)
                 [ ! -d "$config_dir" ] && mkdir -p "$config_dir"
                 send_notification "Jerry" "" "" "Getting the latest example config from github..."
@@ -259,13 +259,13 @@ check_update() {
     update=$(curl -s "https://raw.githubusercontent.com/justchokingaround/jerry/main/jerry.sh")
     update="$(printf '%s\n' "$update" | diff -u "$(command -v jerry)" - 2>/dev/null)"
     if [ -n "$update" ]; then
-        if [ "$use_external_menu" = false ] ; then
+        if [ "$use_external_menu" = false ]; then
             printf "%s" "$1" && read -r answer
         else
             answer=$(printf "Yes\nNo" | launcher "$1")
         fi
         case "$answer" in
-            "Yes" | "yes" | "y" | "Y") update_script ;;
+            [Yy]*) update_script ;;
         esac
     fi
 }
@@ -375,20 +375,20 @@ download_thumbnails() {
 }
 
 image_preview_fzf() {
-  if [ -n "$use_ueberzugpp" ]; then
-    UB_PID_FILE="/tmp/.$(uuidgen)"
-    if [ -z "$ueberzug_output" ]; then
-        ueberzugpp layer --no-stdin --silent --use-escape-codes --pid-file "$UB_PID_FILE" 2>/dev/null
+    if [ -n "$use_ueberzugpp" ]; then
+        UB_PID_FILE="/tmp/.$(uuidgen)"
+        if [ -z "$ueberzug_output" ]; then
+            ueberzugpp layer --no-stdin --silent --use-escape-codes --pid-file "$UB_PID_FILE" 2>/dev/null
+        else
+            ueberzugpp layer -o "$ueberzug_output" --no-stdin --silent --use-escape-codes --pid-file "$UB_PID_FILE" 2>/dev/null
+        fi
+        UB_PID="$(cat "$UB_PID_FILE")"
+        JERRY_UEBERZUG_SOCKET=/tmp/ueberzugpp-"$UB_PID".socket
+        choice=$(find "$images_cache_dir" -type f -exec basename {} \; | fzf -i -q "$1" --cycle --preview-window="$preview_window_size" --preview="ueberzugpp cmd -s $JERRY_UEBERZUG_SOCKET -i fzfpreview -a add -x $ueberzug_x -y $ueberzug_y --max-width $ueberzug_max_width --max-height $ueberzug_max_height -f $images_cache_dir/{}" --reverse --with-nth 1..-2 -d " ")
+        ueberzugpp cmd -s "$JERRY_UEBERZUG_SOCKET" -a exit
     else
-        ueberzugpp layer -o "$ueberzug_output" --no-stdin --silent --use-escape-codes --pid-file "$UB_PID_FILE" 2>/dev/null
+        choice=$(find "$images_cache_dir" -type f -exec basename {} \; | fzf -i -q "$1" --cycle --preview-window="$preview_window_size" --preview="chafa -f sixel $images_cache_dir/{} $chafa_options" --reverse --with-nth 1..-2 -d " ")
     fi
-    UB_PID="$(cat "$UB_PID_FILE")"
-    JERRY_UEBERZUG_SOCKET=/tmp/ueberzugpp-"$UB_PID".socket
-    choice=$(find "$images_cache_dir" -type f -exec basename {} \; | fzf -i -q "$1" --cycle --preview-window="$preview_window_size" --preview="ueberzugpp cmd -s $JERRY_UEBERZUG_SOCKET -i fzfpreview -a add -x $ueberzug_x -y $ueberzug_y --max-width $ueberzug_max_width --max-height $ueberzug_max_height -f $images_cache_dir/{}" --reverse --with-nth 1..-2 -d " ")
-    ueberzugpp cmd -s "$JERRY_UEBERZUG_SOCKET" -a exit
-  else
-    choice=$(find "$images_cache_dir" -type f -exec basename {} \; | fzf -i -q "$1" --cycle --preview-window="$preview_window_size" --preview="chafa -f sixel $images_cache_dir/{} $chafa_options" --reverse --with-nth 1..-2 -d " ")
-  fi
 }
 
 select_desktop_entry() {
@@ -827,8 +827,8 @@ get_episode_info() {
             ;;
         yugen)
             href=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/anime/${media_id}.json" |
-                tr -d '\n' | tr '}' '\n' | $sed -nE 's@.*"YugenAnime".*"url": *"([^"]*)".*@\1@p')
-            tmp_episode_info=$(curl -s "${href}watch/?page=$(((progress) / 48 + 1))" | $sed -nE "s@.*href=\"/([^\"]*)\" title=\"([^\"]*)\".*@\1\t\2@p" | $sed -nE "s@(.*[[:space:]]$((progress + 1)) :)@\1@p")
+                tr -d '\n' | tr '}' '\n' | $sed -nE 's@.*"YugenAnime".*"url": *"([^"]*)".*@\1@p' | $sed -e "s@tv/anime@tv/watch@")
+            tmp_episode_info=$(curl -s "${href}$progress/" | $sed -nE "s@.*href=\"/([^\"]*)\" title=\"([^\"]*)\".*@\1\t\2@p" | $sed -nE "s@(.*$((progress + 1)).:)@\1@p")
             tmp_href=$(printf "%s" "$tmp_episode_info" | cut -f1)
             ep_title=$(printf "%s" "$tmp_episode_info" | cut -f2)
             if [ "$dub" = true ]; then
@@ -1169,7 +1169,7 @@ read_chapter() {
     [ "$((progress + 1))" -eq "$chapters_total" ] && status="COMPLETED" || status="CURRENT"
     completed_chapter=$(printf "Yes\nNo" | launcher "Do you want to update progress? [Y/n] ")
     case "$completed_chapter" in
-        "Yes" | "yes" | "y" | "Y")
+        [Yy]*)
             response=$(update_progress "$progress" "$media_id" "$status")
             if printf "%s" "$response" | grep -q "errors"; then
                 send_notification "Error" "" "" "Could not update progress"
@@ -1178,7 +1178,7 @@ read_chapter() {
                 progress=$((progress + 1))
             fi
             ;;
-        "No" | "no" | "n" | "N")
+        [Nn]*)
             send_notification "Your progress has not been updated"
             ;;
         *) exit 0 ;;
@@ -1263,14 +1263,12 @@ binge() {
             esac
             progress=$((progress + 1))
             resume_from=""
-            sleep 1
         elif [ "$1" = "MANGA" ]; then
             read_manga_choice
             [ $((progress + 1)) = "$chapters_total" ] && break
             case $completed_chapter in
                 [Nn]*) break ;;
             esac
-            sleep 1
         else
             exit 1
         fi
