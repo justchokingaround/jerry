@@ -829,7 +829,7 @@ get_episode_info() {
             href=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/anime/${media_id}.json" |
                 tr -d '\n' | tr '}' '\n' | $sed -nE 's@.*"YugenAnime".*"url": *"([^"]*)".*@\1@p' | $sed -e "s@tv/anime@tv/watch@")
             href="$href$((progress + 1))/"
-            ep_title=$(curl -s "$href" | $sed -nE "s@.*115\s:\s([^<]*).*@\1@p")
+	    ep_title=$(curl -s "$href" | $sed -nE "s@.*$((progress + 1))\s:\s([^<]*).*@\1@p")
             if [ "$dub" = true ]; then
                 href=$(printf "%s" "$href" | $sed -E 's|(/[^/]+)/([0-9]+)/$|\1-dub/\2/|')
             fi
