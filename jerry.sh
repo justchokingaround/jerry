@@ -550,7 +550,7 @@ update_progress() {
 }
 
 update_episode_from_list() {
-    status_choice=$(printf "CURRENT\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Filter by status: ")
+    status_choice=$(printf "CURRENT\nREPEATING\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Filter by status: ")
     get_anime_from_list "$status_choice"
 
     if [ -z "$title" ] || [ -z "$progress" ]; then
@@ -586,7 +586,7 @@ get_manga_from_list() {
         -H 'Content-Type: application/json' \
         -H "Authorization: Bearer $access_token" \
         -d "{\"query\":\"query(\$userId:Int,\$userName:String,\$type:MediaType){MediaListCollection(userId:\$userId,userName:\$userName,type:\$type){lists{name isCustomList isCompletedList:isSplitCompletedList entries{...mediaListEntry}}user{id name avatar{large}mediaListOptions{scoreFormat rowOrder animeList{sectionOrder customLists splitCompletedSectionByFormat theme}mangaList{sectionOrder customLists splitCompletedSectionByFormat theme}}}}}fragment mediaListEntry on MediaList{id mediaId status score progress progressVolumes repeat priority private hiddenFromStatusLists customLists advancedScores notes updatedAt startedAt{year month day}completedAt{year month day}media{id title{userPreferred romaji english native}coverImage{extraLarge large}type format status(version:2)episodes volumes chapters averageScore popularity isAdult countryOfOrigin genres bannerImage startDate{year month day}}}\",\"variables\":{\"userId\":$user_id,\"type\":\"MANGA\"}}" |
-        tr "\[|\]" "\n" | $sed -nE "s@.*\"mediaId\":([0-9]*),\"status\":\"$1\",\"score\":(.*),\"progress\":([0-9]*),.*\"userPreferred\":\"([^\"]*)\".*\"coverImage\":\{\"extraLarge\":\"([^\"]*)\".*\"chapters\":([0-9]*).*@\5\t\1\t\4 \3|\6 chapters \[\2\]@p" | $sed 's/\\\//\//g')
+	tr "\[|\]" "\n" | $sed -nE "s@.*\"mediaId\":([0-9]*),\"status\":\"($1)\",\"score\":(.*),\"progress\":([0-9]*),.*\"userPreferred\":\"([^\"]*)\".*\"coverImage\":\{\"extraLarge\":\"([^\"]*)\".*\"chapters\":([0-9]*).*@\6\t\1\t\5 \4|\7 chapters \[\3\]@p" | $sed 's/\\\//\//g')
 
     if [ "$use_external_menu" = true ]; then
         case "$image_preview" in
@@ -685,7 +685,7 @@ search_manga_anilist() {
 }
 
 update_chapter_from_list() {
-    status_choice=$(printf "CURRENT\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Filter by status: ")
+    status_choice=$(printf "CURRENT\nREPEATING\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Filter by status: ")
     get_manga_from_list "$status_choice"
 
     if [ -z "$title" ] || [ -z "$progress" ]; then
@@ -718,7 +718,7 @@ update_chapter_from_list() {
 #### ANILIST META FUICTIONS ####
 
 update_status() {
-    status_choice=$(printf "CURRENT\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Filter by status: ")
+    status_choice=$(printf "CURRENT\nREPEATING\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Filter by status: ")
     if [ "$1" = "ANIME" ]; then
         get_anime_from_list "$status_choice"
     else
@@ -726,7 +726,7 @@ update_status() {
     fi
     [ -z "$title" ] && exit 0
     send_notification "Choose a new status for $title" "5000"
-    new_status=$(printf "CURRENT\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Choose a new status: ")
+    new_status=$(printf "CURRENT\nREPEATING\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Choose a new status: ")
     [ -z "$new_status" ] && exit 0
     send_notification "Updating status for $title..."
     response=$(update_progress "$((progress - 1))" "$media_id" "$new_status")
@@ -738,13 +738,13 @@ update_status() {
 }
 
 update_score() {
-    [ -z "$percentage_progress" ] || [ "$percentage_progress" -lt 85 ] && return
     if [ "$2" = "immediate" ]; then
+        [ -z "$percentage_progress" ] || [ "$percentage_progress" -lt 85 ] && return
         [ "$1" = "ANIME" ] && total="$episodes_total"
         [ "$1" = "MANGA" ] && total="$chapters_total"
         [ $((progress + 1)) != "$total" ] && return
     else
-        status_choice=$(printf "CURRENT\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Filter by status: ")
+        status_choice=$(printf "CURRENT\nREPEATING\nCOMPLETED\nPAUSED\nDROPPED\nPLANNING" | launcher "Filter by status: ")
         case "$1" in
             "ANIME") get_anime_from_list "$status_choice" ;;
             "MANGA") get_manga_from_list "$status_choice" ;;
@@ -1239,7 +1239,7 @@ watch_anime_choice() {
 }
 
 read_manga_choice() {
-    [ -z "$media_id" ] && get_manga_from_list "CURRENT"
+    [ -z "$media_id" ] && get_manga_from_list "CURRENT|REPEATING"
     [ -z "$chapters_total" ] && chapters_total="9999"
     if [ -z "$media_id" ] || [ -z "$title" ] || [ -z "$progress" ]; then
         send_notification "Jerry" "" "" "Error, no manga found"
