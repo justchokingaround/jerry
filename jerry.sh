@@ -828,13 +828,12 @@ get_episode_info() {
         yugen)
             href=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/anime/${media_id}.json" |
                 tr -d '\n' | tr '}' '\n' | $sed -nE 's@.*"YugenAnime".*"url": *"([^"]*)".*@\1@p' | $sed -e "s@tv/anime@tv/watch@")
-            tmp_episode_info=$(curl -s "${href}$((progress + 1))/" | $sed -nE "s@.*href=\"/([^\"]*)\" title=\"([^\"]*)\".*@\1\t\2@p" | $sed -nE "s@(.*$((progress + 1)).:)@\1@p")
-            tmp_href=$(printf "%s" "$tmp_episode_info" | cut -f1)
-            ep_title=$(printf "%s" "$tmp_episode_info" | cut -f2)
+            href="$href$((progress + 1))/"
+            ep_title=$(curl -s "$href" | $sed -nE "s@.*115\s:\s([^<]*).*@\1@p")
             if [ "$dub" = true ]; then
-                tmp_href=$(printf "%s" "$tmp_href" | $sed -E 's|(/[^/]+)/([0-9]+)/$|\1-dub/\2/|')
+                href=$(printf "%s" "$href" | $sed -E 's|(/[^/]+)/([0-9]+)/$|\1-dub/\2/|')
             fi
-            yugen_id=$(curl -s "https://yugenanime.tv/$tmp_href" | $sed -nE "s@.*id=\"main-embed\" src=\".*/e/([^/]*)/\".*@\1@p")
+            yugen_id=$(curl -s "$href" | $sed -nE "s@.*id=\"main-embed\" src=\".*/e/([^/]*)/\".*@\1@p")
             episode_info=$(printf "%s\t%s" "$yugen_id" "$ep_title")
             ;;
         hdrezka)
