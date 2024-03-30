@@ -559,7 +559,7 @@ update_episode_from_list() {
 
     send_notification "Current progress: $progress/$episodes_total episodes watched" "5000"
 
-    if [ "$use_external_menu" = false ]; then
+    if [ "$use_external_menu" = 0 ]; then
         printf "Enter a new episode number: "
         read -r new_episode_number
     else
@@ -1149,6 +1149,17 @@ play_video() {
             percentage_progress=$($sed -nE "s@.*AV: ([0-9:]*) / ([0-9:]*) \(([0-9]*)%\).*@\3@p" "$tmp_position" | tail -1)
             add_to_history
             ;;
+        *yncpla*)
+            syncplay "$video_link" -- --force-media-title="${title}" >/dev/null 2>&1
+            completed_episode=$(printf "Yes\nNo" | launcher "Do you want to update progress? [Y/n] ")
+            case "$completed_episode" in
+                [Yy]*)
+                    percentage_progress=100
+                    add_to_history
+                    ;;
+                *) exit 0 ;;
+            esac
+        ;;
     esac
 }
 
