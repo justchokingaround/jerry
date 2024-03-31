@@ -24,7 +24,7 @@ images_cache_dir="/tmp/jerry/jerry-images"
 command -v bat >/dev/null 2>&1 && display="bat" || display="less"
 case "$(uname -s)" in
     MINGW* | *Msys) separator=';' && path_thing='' && sed="sed" ;;
-    *arwin) sed="gsed" ;;
+    *arwin) sed="gsed" && player="iina" ;;
     *) separator=':' && path_thing="\\" && sed="sed" ;;
 esac
 command -v notify-send >/dev/null 2>&1 && notify="true" || notify="false"
@@ -36,8 +36,8 @@ send_notification() {
     fi
     [ -z "$2" ] && timeout=3000 || timeout="$2"
     if [ "$notify" = "true" ]; then
-        [ -z "$3" ] && notify-send "$1" "$4" -t "$timeout"
-        [ -n "$3" ] && notify-send "$1" "$4" -t "$timeout" -i "$3" -h string:x-dunst-stack-tag:tes
+        [ -z "$3" ] && notify-send -e "$1" "$4" -t "$timeout" -h string:x-dunst-stack-tag:tes
+        [ -n "$3" ] && notify-send -e "$1" "$4" -t "$timeout" -i "$3" -h string:x-dunst-stack-tag:tes
     fi
 }
 dep_ch() {
@@ -63,7 +63,7 @@ usage() {
       Allows user to watch anime in dub
     -e, --edit
       Edit config file using an editor defined with jerry_editor in the config (\$EDITOR by default). If a config file does not exist, creates one with a default configuration
-	-d, --discord
+    -d, --discord
       Display currently watching anime in Discord Rich Presence (jerrydiscordpresence.py is required for this, check the wiki for instructions on how to install it)
     -h, --help
       Show this help message and exit
@@ -85,6 +85,8 @@ usage() {
       Update the script
     -v, --version
       Show the script version
+    --vlc
+      Use VLC as the video player
     -w, --website
       Choose which website to get video links from (default: allanime) (currently supported: allanime, aniwatch, yugen, hdrezka and crunchyroll)
 
@@ -123,6 +125,7 @@ configuration() {
     [ "$no_anilist" = false ] && no_anilist=""
     [ -z "$discord_presence" ] && discord_presence="false"
     [ -z "$presence_script_path" ] && presence_script_path="jerrydiscordpresence.py"
+    [ -z "$chafa_method"  ] && chafa_method="sixel"
 }
 
 check_credentials() {
@@ -387,7 +390,7 @@ image_preview_fzf() {
         choice=$(find "$images_cache_dir" -type f -exec basename {} \; | fzf -i -q "$1" --cycle --preview-window="$preview_window_size" --preview="ueberzugpp cmd -s $JERRY_UEBERZUG_SOCKET -i fzfpreview -a add -x $ueberzug_x -y $ueberzug_y --max-width $ueberzug_max_width --max-height $ueberzug_max_height -f $images_cache_dir/{}" --reverse --with-nth 1..-2 -d " ")
         ueberzugpp cmd -s "$JERRY_UEBERZUG_SOCKET" -a exit
     else
-        choice=$(find "$images_cache_dir" -type f -exec basename {} \; | fzf -i -q "$1" --cycle --preview-window="$preview_window_size" --preview="chafa -f sixel $images_cache_dir/{} $chafa_options" --reverse --with-nth 1..-2 -d " ")
+        choice=$(find "$images_cache_dir" -type f -exec basename {} \; | fzf -i -q "$1" --cycle --preview-window="$preview_window_size" --preview="chafa -f $chafa_method $images_cache_dir/{} $chafa_options" --reverse --with-nth 1..-2 -d " ")
     fi
 }
 
@@ -418,7 +421,7 @@ get_anime_from_list() {
                 select_desktop_entry ""
                 [ -z "$choice" ] && exit 1
                 media_id=$(printf "%s" "$choice" | cut -d\  -f1)
-                title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?|]* episodes.*@\1@p")
+                title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?|]* episodes.*@\1@p" | $sed -E 's|\\u.{4}||g')
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
@@ -429,7 +432,7 @@ get_anime_from_list() {
                 choice=$(printf "%s" "$tmp_anime_list" | launcher "Choose anime: " "1")
                 [ -z "$choice" ] && exit 1
                 media_id=$(printf "%s" "$choice" | cut -f2)
-                title=$(printf "%s" "$choice" | $sed -nE "s@(.*) [0-9?|]* episodes.*@\1@p")
+                title=$(printf "%s" "$choice" | $sed -nE "s@(.*) [0-9?|]* episodes.*@\1@p" | $sed -E 's|\\u.{4}||g')
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
@@ -443,7 +446,7 @@ get_anime_from_list() {
                 select_desktop_entry ""
                 [ -z "$choice" ] && exit 0
                 media_id=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\.jpg@\1@p")
-                title=$(printf "%s" "$choice" | $sed -nE "s@[[:space:]]*(.*) [0-9?|]* episodes.*@\1@p")
+                title=$(printf "%s" "$choice" | $sed -nE "s@[[:space:]]*(.*) [0-9?|]* episodes.*@\1@p" | $sed -E 's|\\u.{4}||g')
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
@@ -453,7 +456,7 @@ get_anime_from_list() {
                 choice=$(printf "%s" "$anime_list" | launcher "Choose anime: " "3")
                 [ -z "$choice" ] && exit 1
                 media_id=$(printf "%s" "$choice" | cut -f2)
-                title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* episodes.*@\1@p")
+                title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* episodes.*@\1@p" | $sed -E 's|\\u.{4}||g')
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
                 [ -z "$episodes_total" ] && episodes_total=9999
@@ -595,7 +598,7 @@ get_manga_from_list() {
                 select_desktop_entry ""
                 [ -z "$choice" ] && exit 1
                 media_id=$(printf "%s" "$choice" | cut -d\  -f1)
-                title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?|]* chapters.*@\1@p")
+                title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?|]* chapters.*@\1@p" | $sed -E 's|\\u.{4}||g')
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* chapters.*@\1@p")
                 chapters_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) chapters.*@\1@p")
                 score=$(printf "%s" "$choice" | $sed -nE "s@.*\|[0-9?]* chapters[[:space:]]*\[([0-9]*)\][[:space:]]*.*@\1@p")
@@ -605,7 +608,7 @@ get_manga_from_list() {
                 choice=$(printf "%s" "$tmp_manga_list" | launcher "Choose manga: " "1")
                 [ -z "$choice" ] && exit 1
                 media_id=$(printf "%s" "$choice" | cut -f2)
-                title=$(printf "%s" "$choice" | $sed -nE "s@(.*) [0-9?|]* chapters.*@\1@p")
+                title=$(printf "%s" "$choice" | $sed -nE "s@(.*) [0-9?|]* chapters.*@\1@p" | $sed -E 's|\\u.{4}||g')
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* chapters.*@\1@p")
                 chapters_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) chapters.*@\1@p")
                 score=$(printf "%s" "$choice" | $sed -nE "s@.*\|[0-9?]* chapters[[:space:]]*\[([0-9]*)\][[:space:]]*.*@\1@p")
@@ -618,7 +621,7 @@ get_manga_from_list() {
                 select_desktop_entry ""
                 [ -z "$choice" ] && exit 0
                 media_id=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\.jpg@\1@p")
-                title=$(printf "%s" "$choice" | $sed -nE "s@[[:space:]]*(.*) [0-9?|]* chapters.*@\1@p")
+                title=$(printf "%s" "$choice" | $sed -nE "s@[[:space:]]*(.*) [0-9?|]* chapters.*@\1@p" | $sed -E 's|\\u.{4}||g')
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* chapters.*@\1@p")
                 chapters_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) chapters.*@\1@p")
                 score=$(printf "%s" "$choice" | $sed -nE "s@.*\|[0-9?]* chapters[[:space:]]*\[([0-9]*)\][[:space:]]*.*@\1@p")
@@ -627,7 +630,7 @@ get_manga_from_list() {
                 choice=$(printf "%s" "$manga_list" | launcher "Choose manga: " "3")
                 [ -z "$choice" ] && exit 1
                 media_id=$(printf "%s" "$choice" | cut -f2)
-                title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* chapters.*@\1@p")
+                title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* chapters.*@\1@p" | $sed -E 's|\\u.{4}||g')
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* chapters.*@\1@p")
                 chapters_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) chapters.*@\1@p")
                 score=$(printf "%s" "$choice" | $sed -nE "s@.*\|[0-9?]* chapters[[:space:]]*\[([0-9]*)\][[:space:]]*.*@\1@p")
@@ -1131,14 +1134,14 @@ play_video() {
                 send_notification "Resuming from" "" "" "$resume_from"
             fi
             if [ -n "$subs_links" ]; then
-                send_notification "$title" "4000" "$images_cache_dir/  $title $progress|$episodes_total episodes $media_id.jpg" "$displayed_episode_title"
+                send_notification "$title" "4000" "$images_cache_dir/  $title $progress|$episodes_total episodes $media_id.jpg" "$title"
                 if [ "$discord_presence" = "true" ]; then
                     eval "$presence_script_path" \"mpv\" \"${title}\" \"$((progress + 1))\" \"${video_link}\" \"${subs_links}\" ${opts} 2>&1 | tee $tmp_position
                 else
                     mpv "$video_link" $opts "$subs_arg" "$subs_links" --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
                 fi
             else
-                send_notification "$title" "4000" "$images_cache_dir/  $title $progress|$episodes_total episodes $media_id.jpg" "$displayed_episode_title"
+                send_notification "$title" "4000" "$images_cache_dir/  $title $progress|$episodes_total episodes $media_id.jpg" "$title"
                 if [ "$discord_presence" = "true" ]; then
                     eval "$presence_script_path" \"mpv\" \"${title}\" \"$((progress + 1))\" \"${video_link}\" \"\" ${opts} 2>&1 | tee $tmp_position
                 else
@@ -1149,18 +1152,20 @@ play_video() {
             percentage_progress=$($sed -nE "s@.*AV: ([0-9:]*) / ([0-9:]*) \(([0-9]*)%\).*@\3@p" "$tmp_position" | tail -1)
             add_to_history
             ;;
-        *yncpla*)
-            syncplay "$video_link" -- --force-media-title="${title}" >/dev/null 2>&1
-            completed_episode=$(printf "Yes\nNo" | launcher "Do you want to update progress? [Y/n] ")
-            case "$completed_episode" in
-                [Yy]*)
-                    percentage_progress=100
-                    add_to_history
-                    ;;
-                *) exit 0 ;;
-            esac
-        ;;
+        *yncpla*) syncplay "$video_link" -- --force-media-title="${title}" >/dev/null 2>&1 ;;
+        vlc) vlc --play-and-exit --meta-title="${title}" "$video_link" >/dev/null 2>&1 & ;;
+        iina) iina --no-stdin --keep-running --mpv-force-media-title="${title}" "$video_link" >/dev/null 2>&1 & ;;
     esac
+    if [ "$player" != "mpv" ]; then
+        completed_episode=$(printf "Yes\nNo" | launcher "Have you completed watching this episode? [Y/n] ")
+        case "$completed_episode" in
+            [Yy]*)
+                percentage_progress=100
+                add_to_history
+                ;;
+            *) exit 0 ;;
+        esac
+    fi
 }
 
 read_chapter() {
@@ -1454,6 +1459,10 @@ while [ $# -gt 0 ]; do
         -v | -V | --version)
             send_notification "Jerry Version: $JERRY_VERSION"
             exit 0
+            ;;
+        --vlc)
+            player="vlc"
+            shift
             ;;
         -w | --website)
             provider="$2"
