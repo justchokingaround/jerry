@@ -1,19 +1,63 @@
 {
-  description = "watch anime with automatic anilist syncing and other cool stuff";
+  description = "Watch anime with automatic anilist syncing and other cool stuff";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
+    systems.url = "github:nix-systems/default";
+    flake-parts = {
+      url = "github:hercules-ci/flake-parts";
+      inputs.nixpkgs-lib.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
-  flake-utils.lib.eachDefaultSystem (system:
-  with import nixpkgs { system = "${system}"; };
-  let
-    pkgs = import nixpkgs { inherit system; };
-  in {
-    packages.jerry = callPackage ./default.nix { };
-    packages.default = self.packages.${system}.jerry;
-		packages.full = callPackage ./full.nix { };
-  });
+  outputs = inputs @ {
+    flake-parts,
+    systems,
+    self,
+    ...
+  }:
+    flake-parts.lib.mkFlake {inherit inputs;} {
+      systems = import systems;
+
+      perSystem = {pkgs, ...}: let
+        inherit (pkgs) callPackage;
+
+        default = callPackage ./nix/package.nix {};
+        full = callPackage ./nix/package.nix {
+          withRofi = true;
+          imagePreviewSupport = true;
+          infoSupport = true;
+        };
+      in {
+        formatter = pkgs.alejandra;
+
+        devShells.default = pkgs.mkShell {
+          inputsFrom = [full];
+          packages = with pkgs; [
+            # Nix
+            alejandra
+            statix
+            deadnix
+
+            # Shell
+            bash-language-server
+            shellcheck
+            shfmt
+          ];
+        };
+
+        packages = {
+          jerry = default;
+          inherit default;
+          inherit full;
+        };
+      };
+
+      flake = {
+        homeManagerModules = rec {
+          default = import ./nix/hm-module.nix self;
+          jerry = default;
+        };
+      };
+    };
 }
