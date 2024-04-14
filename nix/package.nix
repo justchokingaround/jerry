@@ -36,7 +36,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   };
 
   nativeBuildInputs = [makeWrapper];
-  runtimeDependencies =
+  runtimeInputs =
     [
       coreutils # wc
       curl
@@ -58,7 +58,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
 
     mkdir -p $out/bin
     install -Dm 755 jerry.sh $out/bin/jerry
-    wrapProgram $out/bin/jerry --prefix PATH : ${lib.makeBinPath finalAttrs.runtimeDependencies}
+    wrapProgram $out/bin/jerry --prefix PATH : ${lib.makeBinPath finalAttrs.runtimeInputs}
 
     runHook postInstall
   '';
