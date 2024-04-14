@@ -27,10 +27,10 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   src = builtins.path {
     name = "${finalAttrs.pname}-source";
     path = lib.fileset.toSource {
-      root = ./.;
+      root = ../.;
       fileset = lib.fileset.unions [
-        ./jerry.sh
-        ./jerrydiscordpresence.py
+        ../jerry.sh
+        ../jerrydiscordpresence.py
       ];
     };
   };
