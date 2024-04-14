@@ -13,6 +13,7 @@
   outputs = inputs @ {
     flake-parts,
     systems,
+    self,
     ...
   }:
     flake-parts.lib.mkFlake {inherit inputs;} {
@@ -21,8 +22,8 @@
       perSystem = {pkgs, ...}: let
         inherit (pkgs) callPackage;
 
-        default = callPackage ./. {};
-        full = callPackage ./. {
+        default = callPackage ./nix/package.nix {};
+        full = callPackage ./nix/package.nix {
           withRofi = true;
           imagePreviewSupport = true;
           infoSupport = true;
@@ -49,6 +50,13 @@
           jerry = default;
           inherit default;
           inherit full;
+        };
+      };
+
+      flake = {
+        homeManagerModules = rec {
+          default = import ./nix/hm-module.nix self;
+          jerry = default;
         };
       };
     };
