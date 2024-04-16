@@ -837,7 +837,7 @@ get_episode_info() {
                 href=$(printf "%s" "$href" | $sed -E 's|(/[^/]+)/([0-9]+)/$|\1-dub/\2/|')
             fi
             yugen_id=$(curl -s "$href" | $sed -nE "s@.*id=\"main-embed\" src=\".*/e/([^/]*)/\".*@\1@p")
-            episode_info=$(printf "%s\t%s" "$yugen_id" "$ep_title")
+            episode_info=$(printf "%s\t%s" "$yugen_id" "$ep_title" | head -1)
             ;;
         hdrezka)
             query=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/anime/${media_id}.json" |
