@@ -562,7 +562,7 @@ update_episode_from_list() {
 
     send_notification "Current progress: $progress/$episodes_total episodes watched" "5000"
 
-    if [ "$use_external_menu" = 0 ]; then
+    if [ "$use_external_menu" = false ]; then
         printf "Enter a new episode number: "
         read -r new_episode_number
     else
