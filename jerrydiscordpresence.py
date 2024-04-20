@@ -19,6 +19,7 @@ http_client = httpx.Client(base_url=ENDPONT)
     _,
     mpv_executable,
     anime_name,
+    release_year,
     episode_count,
     content_stream,
     subtitle_stream,
@@ -26,7 +27,7 @@ http_client = httpx.Client(base_url=ENDPONT)
 ) = sys.argv
 
 
-anime = http_client.get("edge/anime", params={"filter[text]": anime_name}).json()[
+anime = http_client.get("edge/anime", params={"filter[text]": anime_name, "filter[year]": f"{release_year}..{release_year}"}).json()[
     "data"
 ]
 
