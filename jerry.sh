@@ -370,15 +370,10 @@ download_thumbnails() {
     printf "%s\n" "$1" | while read -r cover_url media_id title; do
         title=$(echo "$title" | $sed -E 's/[<>:"/\\|?*]+//g')
         curl -s -o "$images_cache_dir/  $title $media_id.jpg" "$cover_url" &
-        pids[${i}]=$!
         if [ "$use_external_menu" = true ]; then
             entry=/tmp/jerry/applications/"$media_id.desktop"
             generate_desktop "$title" "$images_cache_dir/  $title $media_id.jpg" >"$entry" &
-            pids[${i}]=$!
         fi
-    done
-    for pid in ${pids[*]}; do
-        wait $pid
     done
     sleep $2
 }
