@@ -391,7 +391,8 @@ image_preview_fzf() {
         choice=$(find "$images_cache_dir" -type f -exec basename {} \; | fzf -i -q "$1" --cycle --preview-window="$preview_window_size" --preview="ueberzugpp cmd -s $JERRY_UEBERZUG_SOCKET -i fzfpreview -a add -x $ueberzug_x -y $ueberzug_y --max-width $ueberzug_max_width --max-height $ueberzug_max_height -f $images_cache_dir/{}" --reverse --with-nth 1..-2 -d " ")
         ueberzugpp cmd -s "$JERRY_UEBERZUG_SOCKET" -a exit
     else
-        choice=$(find "$images_cache_dir" -type f -exec basename {} \; | fzf -i -q "$1" --cycle --preview-window="$preview_window_size" --preview="chafa  $chafa_options $images_cache_dir/{}" --reverse --with-nth 1..-2 -d " ")
+        view_dim="$(($(tput cols) / 2 - 4))x$(($(tput lines) - 2))"
+        choice=$(find "$images_cache_dir" -type f -exec basename {} \; | fzf -i -q "$1" --cycle --preview-window="$preview_window_size" --preview="chafa --size=$view_dim $chafa_options $images_cache_dir/{}" --reverse --with-nth 1..-2 -d " ")
     fi
 }
 
