@@ -691,20 +691,16 @@ search_manga_anilist() {
             true)
                 download_thumbnails "$manga_list" "1"
                 select_desktop_entry "" "Choose manga: " "$manga_list"
-                [ -z "$choice" ] && exit 1
-                [ -z "$choice" ] && exit 0
-                media_id=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\.jpg@\1@p")
-                title=$(printf "%s" "$choice" | $sed -nE "s@[[:space:]]*(.*) [0-9?|]* chapters.*@\1@p")
-                chapters_total=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9?]*) chapters.*@\1@p")
                 ;;
             *)
                 choice=$(printf "%s" "$manga_list" | launcher "Choose manga: " "3")
-                media_id=$(printf "%s" "$choice" | cut -f2)
-                title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* chapters.*@\1@p")
-                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* chapters.*@\1@p")
-                chapters_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) chapters.*@\1@p")
                 ;;
         esac
+        [ -z "$choice" ] && exit 0
+        media_id=$(printf "%s" "$choice" | cut -f2)
+        title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* chapters.*@\1@p")
+        [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* chapters.*@\1@p")
+        chapters_total=$(printf "%s" "$choice" | $sed -nE "s@.*\|([0-9?]*) chapters.*@\1@p")
     fi
 
     [ -z "$title" ] && exit 0
