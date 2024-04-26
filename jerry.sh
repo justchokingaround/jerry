@@ -871,9 +871,9 @@ extract_from_json() {
             resp=$(printf "%s" "$json_data" | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*sourceUrl":"--([^"]*)".*sourceName":"([^"]*)".*|\2 :\1|p')
             # generate links into sequential files
             cache_dir="$(mktemp -d)"
-            providers="1 2 3 4 5"
-            for provider in $providers; do
-                generate_links "$provider" >"$cache_dir"/"$provider" &
+            link_providers="1 2 3 4 5"
+            for link_provider in $link_providers; do
+                generate_links "$link_provider" >"$cache_dir"/"$link_provider" &
             done
             wait
             # select the link with matching quality
