@@ -120,7 +120,7 @@ configuration() {
     [ -z "$use_external_menu" ] && use_external_menu=false
     [ -z "$image_preview" ] && image_preview=false
     [ -z "$json_output" ] && json_output=false
-    [ -z "$dub_or_sub" ] && dub_or_sub="choose"
+    [ -z "$dub_or_sub" ] && dub_or_sub="sub"
     [ -z "$score_on_completion" ] && score_on_completion="false"
     [ "$no_anilist" = false ] && no_anilist=""
     [ -z "$discord_presence" ] && discord_presence="false"
@@ -559,7 +559,7 @@ update_episode_from_list() {
 
     send_notification "Current progress: $progress/$episodes_total episodes watched" "5000"
 
-    if [ "$use_external_menu" = 0 ]; then
+    if [ "$use_external_menu" = false ]; then
         printf "Enter a new episode number: "
         read -r new_episode_number
     else
@@ -830,7 +830,7 @@ get_episode_info() {
                 tr -d '\n' | tr '}' '\n' | $sed -nE 's@.*"YugenAnime".*"url": *"([^"]*)".*@\1@p' | $sed -e "s@tv/anime@tv/watch@")
             href="$href$((progress + 1))/"
             ep_title=$(curl -s "$href" | $sed -nE "s@.*$((progress + 1))\s:\s([^<]*).*@\1@p")
-            if [ "$dub" = true ]; then
+            if [ "$translation_type" = "dub" ]; then
                 href=$(printf "%s" "$href" | $sed -E 's|(/[^/]+)/([0-9]+)/$|\1-dub/\2/|')
             fi
             yugen_id=$(curl -s "$href" | $sed -nE "s@.*id=\"main-embed\" src=\".*/e/([^/]*)/\".*@\1@p")
@@ -991,7 +991,6 @@ extract_from_json() {
 }
 
 get_json() {
-    [ "$dub" = true ] && translation_type="dub" || translation_type="sub"
     case "$provider" in
         allanime)
             json_data=$(curl -e "$allanime_refr" -s -G "https://api.$allanime_base/api" --data-urlencode 'variables={"showId":"'"$episode_id"'","translationType":"'"$translation_type"'","episodeString":"'"$episode_number"'"}' --data-urlencode 'query=query ($showId: String!, $translationType: VaildTranslationTypeEnumType!, $episodeString: String!) {    episode(        showId: $showId        translationType: $translationType        episodeString: $episodeString    ) {        episodeString sourceUrls    }}')
@@ -1198,17 +1197,21 @@ read_chapter() {
 }
 
 watch_anime() {
-    if [ "$dub_or_sub" = "dub" ]; then 
-        dub="true"
-    elif [ "$dub_or_sub" = "sub" ]; then
-        dub="false"
-    else
+    if [ "$dub_or_sub" = "dub" ] || [ "$dub_or_sub" = "sub" ]; then 
+        translation_type="$dub_or_sub"
+    elif [ -z $translation_type ]; then
         dub_choice=$(printf "Sub\nDub" | launcher "Would you like to watch Sub or Dub?")
         case "$dub_choice" in
-            "Sub") dub="false"
-            ;;
-            "Dub") dub="true"
-            ;;
+            "Sub")
+                translation_type="sub"
+                ;;
+            "Dub")
+                translation_type="dub"
+                ;;
+            *)
+                send_notification "Error" "" "" "Invalid translation type"
+                exit 1
+                ;;
         esac
     fi
 
@@ -1406,7 +1409,7 @@ while [ $# -gt 0 ]; do
             shift
             ;;
         -d | --discord) discord_presence=true && shift ;;
-        --dub) dub="true" && shift ;;
+        --dub) dub_or_sub="dub" && shift ;;
         -e | --edit) edit_configuration ;;
         -h | --help)
             usage && exit 0
