@@ -125,7 +125,7 @@ configuration() {
     [ "$no_anilist" = false ] && no_anilist=""
     [ -z "$discord_presence" ] && discord_presence="false"
     [ -z "$presence_script_path" ] && presence_script_path="jerrydiscordpresence.py"
-    [ -z "$chafa_method" ] && chafa_method="sixel"
+    # [ -z "$chafa_method" ] && chafa_method="sixel" # Unused after introduction of chafa_options variable. TODO: Possibly make default chafa_options
     [ -z "$show_adult_content" ] && show_adult_content="false"
 }
 
@@ -391,12 +391,17 @@ image_preview_fzf() {
         choice=$(printf "%s" "$anime_list" | fzf -i -q "$1" --prompt "$2" --cycle --preview-window="$preview_window_size" --preview="ueberzugpp cmd -s $JERRY_UEBERZUG_SOCKET -i fzfpreview -a add -x $ueberzug_x -y $ueberzug_y --max-width $ueberzug_max_width --max-height $ueberzug_max_height -f $images_cache_dir/{2}.jpg" --reverse --with-nth "3" -d "\t")
         ueberzugpp cmd -s "$JERRY_UEBERZUG_SOCKET" -a exit
     else
-        if [[ "$OSTYPE" =~ ^msys ]]; then
-            view_dim="$(($(tput cols) / 2 - 4))x$(($(tput lines) - 2))"
-            choice=$(printf "%s" "$anime_list" | fzf -i -q "$1" --prompt "$2" --cycle --preview-window="$preview_window_size" --preview="test -f $images_cache_dir/{2}.jpg && chafa --size=$view_dim $chafa_options $images_cache_dir/{2}.jpg || echo 'File not Found'" --reverse --with-nth "3" -d "\t")
-        else
-            choice=$(printf "%s" "$anime_list" | fzf -i -q "$1" --prompt "$2" --cycle --preview-window="$preview_window_size" --preview="chafa $chafa_options $images_cache_dir/{2}.jpg" --reverse --with-nth "3" -d "\t")
-        fi
+        case "$(uname -s)" in
+            MINGW* | *Msys)
+                # Chafa on windows fails to detect terminal preview window size, so it is determined by view_dim
+                # TODO: Make $view_dim properly reflect $preview_window_size
+                view_dim="$(($(tput cols) / 2 - 4))x$(($(tput lines) - 2))"
+                choice=$(printf "%s" "$anime_list" | fzf -i -q "$1" --prompt "$2" --cycle --preview-window="$preview_window_size" --preview="test -f $images_cache_dir/{2}.jpg && chafa --size=$view_dim $chafa_options $images_cache_dir/{2}.jpg || echo 'File not Found'" --reverse --with-nth "3" -d "\t")
+                ;;
+            *)
+                choice=$(printf "%s" "$anime_list" | fzf -i -q "$1" --prompt "$2" --cycle --preview-window="$preview_window_size" --preview="test -f $images_cache_dir/{2}.jpg && chafa $chafa_options $images_cache_dir/{2}.jpg || echo 'File not Found'" --reverse --with-nth "3" -d "\t")
+                ;;
+        esac
     fi
 }
 
