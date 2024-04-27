@@ -1067,7 +1067,7 @@ get_chapter_info() {
     case "$manga_provider" in
         mangadex)
             mangadex_id=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/manga/${media_id}.json" | tr -d "\n" | $sed -nE "s@.*\"Mangadex\":[[:space:]{]*\"([^\"]*)\".*@\1@p")
-            chapter_info=$(curl -s "https://api.mangadex.org/manga/$mangadex_id/feed?limit=164&translatedLanguage[]=en" | $sed "s/}]},/\n/g" |
+            chapter_info=$(curl -s "https://api.mangadex.org/chapter?manga=$mangadex_id&translatedLanguage[]=en&chapter=$((progress + 1))&includeEmptyPages=0" | $sed "s/}]},/\n/g" |
                 $sed -nE "s@.*\"id\":\"([^\"]*)\".*\"chapter\":\"$((progress + 1))\",\"title\":\"([^\"]*)\".*@\1\t\2@p" | head -1)
             ;;
     esac
