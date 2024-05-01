@@ -125,7 +125,7 @@ configuration() {
     [ "$no_anilist" = false ] && no_anilist=""
     [ -z "$discord_presence" ] && discord_presence="false"
     [ -z "$presence_script_path" ] && presence_script_path="jerrydiscordpresence.py"
-    # [ -z "$chafa_method" ] && chafa_method="sixel" # Unused after introduction of chafa_options variable. TODO: Possibly make default chafa_options
+    [ -z "$chafa_options" ] && chafa_options="-f sixel"
     [ -z "$show_adult_content" ] && show_adult_content="false"
 }
 
@@ -165,7 +165,7 @@ get_links() {
             else
                 extract_link=$(printf "%s" "$episode_link" | head -1 | cut -d'>' -f2)
                 relative_link=$(printf "%s" "$extract_link" | sed 's|[^/]*$||')
-                curl -e "$allanime_refr" -s "$extract_link" -A "$agent" | sed 's|^#.*x||g; s|,.*|p|g; /^#/d; $!N; s|\n| >|' | sed "s|>|>${relative_link}|g" | sort -nr
+                curl -e "$allanime_refr" -s "$extract_link" -A "uwu" | sed 's|^#.*x||g; s|,.*|p|g; /^#/d; $!N; s|\n| >|' | sed "s|>|>${relative_link}|g" | sort -nr
             fi
             ;;
         *) [ -n "$episode_link" ] && printf "%s\n" "$episode_link" ;;
@@ -275,7 +275,7 @@ check_update() {
 }
 
 get_input() {
-    if [ "$use_external_menu" = false ]; then
+    if [ "$use_external_menu" = 0 ]; then
         printf "%s" "$1" && read -r query
     else
         if [ -n "$rofi_prompt_config" ]; then
@@ -317,15 +317,6 @@ nth() {
     [ $# -ne 1 ] && shift
     line=$(printf "%s" "$stdin" | $sed -nE "s@^([0-9]*)[[:space:]]*[0-9]*[[:space:]]*([0-9/]*)[[:space:]]*[0-9:]*[[:space:]]*(.*)@\1\t\3 - Episode \2@p" | tr '\t' ' ' | launcher "$prompt" | cut -d\  -f1)
     [ -n "$line" ] && printf "%s" "$stdin" | $sed -nE "s@^$line\t(.*)@\1@p" || exit 1
-}
-
-nine_anime_helper() {
-    curl -s "$base_helper_url/$1?query=$2&apikey=jerry" | $sed -nE "s@.*\"$3\":\"([^\"]*)\".*@\1@p"
-}
-
-nine_anime_extractor() {
-    futoken=$(curl -s "vidstream.pro/futoken")
-    curl -s "$base_helper_url/$1?query=$2&apikey=jerry" -d "query=${2}&futoken=${futoken}" | $sed -nE "s@.*\"$3\":\"([^\"]*)\".*@\1@p"
 }
 
 download_images() {
@@ -458,7 +449,7 @@ get_anime_from_list() {
         case "$image_preview" in
             true)
                 download_thumbnails "$anime_list" "2"
-                select_desktop_entry ""
+                select_desktop_entry "" "Choose anime: " "$anime_list"
                 [ -z "$choice" ] && exit 0
                 start_year=$(printf "%s" "$choice" | $sed -nE "s@.*\(([0-9?]{4})\).*@\1@p")
                 choice=$(printf "%s" "$choice" | $sed -nE "s@\([0-9?]{4}\)@ @p") # remove year from the title
@@ -532,7 +523,7 @@ search_anime_anilist() {
         case "$image_preview" in
             true)
                 download_thumbnails "$anime_list" "2"
-                select_desktop_entry ""
+                select_desktop_entry "" "Choose anime: " "$anime_list"
                 [ -z "$choice" ] && exit 0
                 start_year=$(printf "%s" "$choice" | $sed -nE "s@.*\(([0-9?]{4})\).*@\1@p")
                 choice=$(printf "%s" "$choice" | $sed -nE "s@\([0-9?]{4}\)@ @p") # remove year from the title
@@ -551,7 +542,7 @@ search_anime_anilist() {
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
                 ;;
         esac
-        
+
         [ -z "$choice" ] && exit 0
         media_id=$(printf "%s" "$choice" | cut -f2)
         title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* episodes.*@\1@p")
@@ -1249,9 +1240,9 @@ read_chapter() {
 }
 
 watch_anime() {
-    if [ "$sub_or_dub" = "dub" ] || [ "$sub_or_dub" = "sub" ]; then 
+    if [ "$sub_or_dub" = "dub" ] || [ "$sub_or_dub" = "sub" ]; then
         translation_type="$sub_or_dub"
-    elif [ -z $translation_type ]; then
+    elif [ -z "$translation_type" ]; then
         dub_choice=$(printf "Sub\nDub" | launcher "Would you like to watch Sub or Dub?")
         case "$dub_choice" in
             "Sub")
