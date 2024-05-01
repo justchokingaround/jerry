@@ -420,7 +420,7 @@ get_anime_from_list() {
     anime_list=$(curl -s -X POST "$anilist_base" \
         -H 'Content-Type: application/json' \
         -H "Authorization: Bearer $access_token" \
-        -d "{\"query\":\"query(\$userId:Int,\$userName:String,\$type:MediaType){MediaListCollection(userId:\$userId,userName:\$userName,type:\$type){lists{name isCustomList isCompletedList:isSplitCompletedList entries{...mediaListEntry}}user{id name avatar{large}mediaListOptions{scoreFormat rowOrder animeList{sectionOrder customLists splitCompletedSectionByFormat theme}mangaList{sectionOrder customLists splitCompletedSectionByFormat theme}}}}}fragment mediaListEntry on MediaList{id mediaId status score progress progressVolumes repeat priority private hiddenFromStatusLists customLists advancedScores notes updatedAt startedAt{year month day}completedAt{year month day}media{id title{userPreferred romaji english native}coverImage{extraLarge large}type format status(version:2)episodes volumes chapters averageScore popularity isAdult countryOfOrigin genres bannerImage nextAiringEpisode{airingAt timeUntilAiring episode} startDate{year month day}}}\",\"variables\":{\"userId\":$user_id,\"type\":\"ANIME\"}}" | $sed "s@},{@\n@g" | $sed -nE "s@.*\"mediaId\":([0-9]*),\"status\":\"($1)\",\"score\":(.*),\"progress\":([0-9]*),.*\"userPreferred\":\"([^\"]*)\".*\"coverImage\":\{\"extraLarge\":\"([^\"]*)\".*\"episode([\"]*)s*[\"]*:([0-9]*).*@\6\t\1\t\5 \4|\8 episodes \7 \[\3\]@p" | $sed 's/\\\//\//g;s/\"/(releasing)/')
+        -d "{\"query\":\"query(\$userId:Int,\$userName:String,\$type:MediaType){MediaListCollection(userId:\$userId,userName:\$userName,type:\$type){lists{name isCustomList isCompletedList:isSplitCompletedList entries{...mediaListEntry}}user{id name avatar{large}mediaListOptions{scoreFormat rowOrder animeList{sectionOrder customLists splitCompletedSectionByFormat theme}mangaList{sectionOrder customLists splitCompletedSectionByFormat theme}}}}}fragment mediaListEntry on MediaList{id mediaId status score progress progressVolumes repeat priority private hiddenFromStatusLists customLists advancedScores notes updatedAt startedAt{year month day}completedAt{year month day}media{id title{userPreferred romaji english native}coverImage{extraLarge large}type format status(version:2)episodes volumes chapters averageScore popularity isAdult countryOfOrigin genres bannerImage nextAiringEpisode{airingAt timeUntilAiring episode} startDate{year month day}}}\",\"variables\":{\"userId\":$user_id,\"type\":\"ANIME\"}}" | $sed "s@},{@\n@g" | $sed -nE "s@.*\"mediaId\":([0-9]*),\"status\":\"($1)\",\"score\":(.*),\"progress\":([0-9]*),.*\"userPreferred\":\"([^\"]*)\".*\"coverImage\":\{\"extraLarge\":\"([^\"]*)\".*\"episode([\"]*)s*[\"]*:([0-9]*).*\"startDate\":\{\"year\":([0-9]*).*@\6\t\1\t\5 \(\9\) \4|\8 episodes \7 \[\3\]@p" | $sed 's/\\\//\//g;s/\"/(releasing)/')
     if [ -z "$anime_list" ]; then
         send_notification "No anime found in your list" "2000"
         exit 1
@@ -431,6 +431,8 @@ get_anime_from_list() {
                 download_thumbnails "$anime_list" "1"
                 select_desktop_entry "" "Choose anime: " "$anime_list"
                 [ -z "$choice" ] && exit 1
+                start_year=$(printf "%s" "$choice" | $sed -nE "s@.*\(([0-9?]{4})\).*@\1@p")
+                choice=$(printf "%s" "$choice" | $sed -nE "s@\([0-9?]{4}\)@ @p") # remove year from the title
                 media_id=$(printf "%s" "$choice" | cut -d\  -f1)
                 title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?|]* episodes.*@\1@p" | $sed -E 's|\\u.{4}|+|g')
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
@@ -442,6 +444,8 @@ get_anime_from_list() {
                 tmp_anime_list=$(printf "%s" "$anime_list" | $sed -nE "s@(.*\.[jpneg]*)[[:space:]]*([0-9]*)[[:space:]]*(.*)@\3\t\2\t\1@p")
                 choice=$(printf "%s" "$tmp_anime_list" | launcher "Choose anime: " "1")
                 [ -z "$choice" ] && exit 1
+                start_year=$(printf "%s" "$choice" | $sed -nE "s@.*\(([0-9?]{4})\).*@\1@p")
+                choice=$(printf "%s" "$choice" | $sed -nE "s@\([0-9?]{4}\)@ @p") # remove year from the title
                 media_id=$(printf "%s" "$choice" | cut -f2)
                 title=$(printf "%s" "$choice" | $sed -nE "s@(.*) [0-9?|]* episodes.*@\1@p" | $sed -E 's|\\u.{4}|+|g')
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
@@ -453,12 +457,29 @@ get_anime_from_list() {
     else
         case "$image_preview" in
             true)
-                download_thumbnails "$anime_list" "1"
-                select_desktop_entry "" "Choose anime: " "$anime_list"
-                [ -z "$choice" ] && exit 1
+                download_thumbnails "$anime_list" "2"
+                select_desktop_entry ""
+                [ -z "$choice" ] && exit 0
+                start_year=$(printf "%s" "$choice" | $sed -nE "s@.*\(([0-9?]{4})\).*@\1@p")
+                choice=$(printf "%s" "$choice" | $sed -nE "s@\([0-9?]{4}\)@ @p") # remove year from the title
+                media_id=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\.jpg@\1@p")
+                title=$(printf "%s" "$choice" | $sed -nE "s@[[:space:]]*(.*) [0-9?|]* episodes.*@\1@p" | $sed -E 's|\\u.{4}|+|g')
+                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
+                [ -z "$episodes_total" ] && episodes_total=9999
+                score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\].*@\1@p")
                 ;;
             *)
                 choice=$(printf "%s" "$anime_list" | launcher "Choose anime: " "3")
+                [ -z "$choice" ] && exit 1
+                start_year=$(printf "%s" "$choice" | $sed -nE "s@.*\(([0-9?]{4})\).*@\1@p")
+                choice=$(printf "%s" "$choice" | $sed -nE "s@\([0-9?]{4}\)@ @p") # remove year from the title
+                media_id=$(printf "%s" "$choice" | cut -f2)
+                title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* episodes.*@\1@p" | $sed -E 's|\\u.{4}|+|g')
+                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
+                [ -z "$episodes_total" ] && episodes_total=9999
+                score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\].*@\1@p")
                 ;;
         esac
 
@@ -480,7 +501,7 @@ search_anime_anilist() {
     fi
     anime_list=$(curl -s -X POST "$anilist_base" \
         -H 'Content-Type: application/json' \
-        -d "{\"query\":\"query(\$page:Int = 1 \$id:Int \$type:MediaType \$isAdult:Boolean \$search:String \$format:[MediaFormat]\$status:MediaStatus \$countryOfOrigin:CountryCode \$source:MediaSource \$season:MediaSeason \$seasonYear:Int \$year:String \$onList:Boolean \$yearLesser:FuzzyDateInt \$yearGreater:FuzzyDateInt \$episodeLesser:Int \$episodeGreater:Int \$durationLesser:Int \$durationGreater:Int \$chapterLesser:Int \$chapterGreater:Int \$volumeLesser:Int \$volumeGreater:Int \$licensedBy:[Int]\$isLicensed:Boolean \$genres:[String]\$excludedGenres:[String]\$tags:[String]\$excludedTags:[String]\$minimumTagRank:Int \$sort:[MediaSort]=[POPULARITY_DESC,SCORE_DESC]){Page(page:\$page,perPage:20){pageInfo{total perPage currentPage lastPage hasNextPage}media(id:\$id type:\$type season:\$season format_in:\$format status:\$status countryOfOrigin:\$countryOfOrigin source:\$source search:\$search onList:\$onList seasonYear:\$seasonYear startDate_like:\$year startDate_lesser:\$yearLesser startDate_greater:\$yearGreater episodes_lesser:\$episodeLesser episodes_greater:\$episodeGreater duration_lesser:\$durationLesser duration_greater:\$durationGreater chapters_lesser:\$chapterLesser chapters_greater:\$chapterGreater volumes_lesser:\$volumeLesser volumes_greater:\$volumeGreater licensedById_in:\$licensedBy isLicensed:\$isLicensed genre_in:\$genres genre_not_in:\$excludedGenres tag_in:\$tags tag_not_in:\$excludedTags minimumTagRank:\$minimumTagRank sort:\$sort isAdult:\$isAdult){id title{userPreferred}coverImage{extraLarge large color}startDate{year month day}endDate{year month day}bannerImage season seasonYear description type format status(version:2)episodes duration chapters volumes genres isAdult averageScore popularity nextAiringEpisode{airingAt timeUntilAiring episode}mediaListEntry{id status}studios(isMain:true){edges{isMain node{id name}}}}}}\",\"variables\":{\"page\":1,\"type\":\"ANIME\",\"sort\":\"SEARCH_MATCH\",\"search\":\"$1\"$isAdult_variable}}" | $sed "s@edges@\n@g" | $sed -nE "s@.*\"id\":([0-9]*),.*\"userPreferred\":\"(.*)\"\},\"coverImage\":.*\"extraLarge\":\"([^\"]*)\".*\"episode([\"]*)s*[\"]*:([0-9]*).*@\3\t\1\t\2 \5 episodes \4@p" | $sed 's/\\\//\//g;s/\"/(releasing)/')
+        -d "{\"query\":\"query(\$page:Int = 1 \$id:Int \$type:MediaType \$isAdult:Boolean = false \$search:String \$format:[MediaFormat]\$status:MediaStatus \$countryOfOrigin:CountryCode \$source:MediaSource \$season:MediaSeason \$seasonYear:Int \$year:String \$onList:Boolean \$yearLesser:FuzzyDateInt \$yearGreater:FuzzyDateInt \$episodeLesser:Int \$episodeGreater:Int \$durationLesser:Int \$durationGreater:Int \$chapterLesser:Int \$chapterGreater:Int \$volumeLesser:Int \$volumeGreater:Int \$licensedBy:[Int]\$isLicensed:Boolean \$genres:[String]\$excludedGenres:[String]\$tags:[String]\$excludedTags:[String]\$minimumTagRank:Int \$sort:[MediaSort]=[POPULARITY_DESC,SCORE_DESC]){Page(page:\$page,perPage:20){pageInfo{total perPage currentPage lastPage hasNextPage}media(id:\$id type:\$type season:\$season format_in:\$format status:\$status countryOfOrigin:\$countryOfOrigin source:\$source search:\$search onList:\$onList seasonYear:\$seasonYear startDate_like:\$year startDate_lesser:\$yearLesser startDate_greater:\$yearGreater episodes_lesser:\$episodeLesser episodes_greater:\$episodeGreater duration_lesser:\$durationLesser duration_greater:\$durationGreater chapters_lesser:\$chapterLesser chapters_greater:\$chapterGreater volumes_lesser:\$volumeLesser volumes_greater:\$volumeGreater licensedById_in:\$licensedBy isLicensed:\$isLicensed genre_in:\$genres genre_not_in:\$excludedGenres tag_in:\$tags tag_not_in:\$excludedTags minimumTagRank:\$minimumTagRank sort:\$sort isAdult:\$isAdult){id title{userPreferred}coverImage{extraLarge large color}startDate{year month day}endDate{year month day}bannerImage season seasonYear description type format status(version:2)episodes duration chapters volumes genres isAdult averageScore popularity nextAiringEpisode{airingAt timeUntilAiring episode}mediaListEntry{id status}studios(isMain:true){edges{isMain node{id name}}}}}}\",\"variables\":{\"page\":1,\"type\":\"ANIME\",\"sort\":\"SEARCH_MATCH\",\"search\":\"$1\"}}" | $sed "s@edges@\n@g" | $sed -nE "s@.*\"id\":([0-9]*),.*\"userPreferred\":\"(.*)\"\},\"coverImage\":.*\"extraLarge\":\"([^\"]*)\".*\"startDate\":\{\"year\":([0-9]*).*\"episode([\"]*)s*[\"]*:([0-9]*).*@\3\t\1\t\2 \(\4\) \6 episodes \5@p" | $sed 's/\\\//\//g;s/\"/(releasing)/')
 
     if [ "$use_external_menu" = true ]; then
         case "$image_preview" in
@@ -488,6 +509,8 @@ search_anime_anilist() {
                 download_thumbnails "$anime_list" "1"
                 select_desktop_entry "" "Choose anime: " "$anime_list"
                 [ -z "$choice" ] && exit 1
+                start_year=$(printf "%s" "$choice" | $sed -nE "s@.*\(([0-9?]{4})\).*@\1@p")
+                choice=$(printf "%s" "$choice" | $sed -nE "s@\([0-9?]{4}\)@ @p") # remove year from the title
                 media_id=$(printf "%s" "$choice" | cut -d\  -f1)
                 title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?]* episodes.*@\1@p")
                 episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
@@ -496,6 +519,8 @@ search_anime_anilist() {
             *)
                 tmp_anime_list=$(printf "%s" "$anime_list" | $sed -nE "s@(.*\.[jpneg]*)[[:space:]]*([0-9]*)[[:space:]]*(.*)@\3\t\2\t\1@p")
                 choice=$(printf "%s" "$tmp_anime_list" | launcher "Choose anime: " "1")
+                start_year=$(printf "%s" "$choice" | $sed -nE "s@.*\(([0-9?]{4})\).*@\1@p")
+                choice=$(printf "%s" "$choice" | $sed -nE "s@\([0-9?]{4}\)@ @p") # remove year from the title
                 media_id=$(printf "%s" "$choice" | cut -f2)
                 title=$(printf "%s" "$choice" | $sed -nE "s@(.*) [0-9?|]* episodes.*@\1@p")
                 [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
@@ -506,12 +531,24 @@ search_anime_anilist() {
     else
         case "$image_preview" in
             true)
-                download_thumbnails "$anime_list" "1"
-                select_desktop_entry "" "Choose anime: " "$anime_list"
-                [ -z "$choice" ] && exit 1
+                download_thumbnails "$anime_list" "2"
+                select_desktop_entry ""
+                [ -z "$choice" ] && exit 0
+                start_year=$(printf "%s" "$choice" | $sed -nE "s@.*\(([0-9?]{4})\).*@\1@p")
+                choice=$(printf "%s" "$choice" | $sed -nE "s@\([0-9?]{4}\)@ @p") # remove year from the title
+                media_id=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\.jpg@\1@p")
+                title=$(printf "%s" "$choice" | $sed -nE "s@[[:space:]]*(.*) [0-9?|]* episodes.*@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
+                [ -z "$episodes_total" ] && episodes_total=9999
                 ;;
             *)
                 choice=$(printf "%s" "$anime_list" | launcher "Choose anime: " "3")
+                start_year=$(printf "%s" "$choice" | $sed -nE "s@.*\(([0-9?]{4})\).*@\1@p")
+                choice=$(printf "%s" "$choice" | $sed -nE "s@\([0-9?]{4}\)@ @p") # remove year from the title
+                media_id=$(printf "%s" "$choice" | cut -f2)
+                title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* episodes.*@\1@p")
+                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
+                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
                 ;;
         esac
         
@@ -1147,14 +1184,14 @@ play_video() {
             if [ -n "$subs_links" ]; then
                 send_notification "$title" "4000" "$images_cache_dir/$media_id.jpg" "$title"
                 if [ "$discord_presence" = "true" ]; then
-                    eval "$presence_script_path" \"mpv\" \"${title}\" \"$((progress + 1))\" \"${video_link}\" \"${subs_links}\" ${opts} 2>&1 | tee $tmp_position
+                    eval "$presence_script_path" \"mpv\" \"${title}\" \"${start_year}\" \"$((progress + 1))\" \"${video_link}\" \"${subs_links}\" ${opts} 2>&1 | tee $tmp_position
                 else
                     mpv "$video_link" $opts "$subs_arg" "$subs_links" --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
                 fi
             else
                 send_notification "$title" "4000" "$images_cache_dir/$media_id.jpg" "$title"
                 if [ "$discord_presence" = "true" ]; then
-                    eval "$presence_script_path" \"mpv\" \"${title}\" \"$((progress + 1))\" \"${video_link}\" \"\" ${opts} 2>&1 | tee $tmp_position
+                    eval "$presence_script_path" \"mpv\" \"${title}\" \"${start_year}\" \"$((progress + 1))\" \"${video_link}\" \"\" ${opts} 2>&1 | tee $tmp_position
                 else
                     mpv "$video_link" $opts --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
                 fi
