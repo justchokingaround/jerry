@@ -125,7 +125,10 @@ configuration() {
     [ "$no_anilist" = false ] && no_anilist=""
     [ -z "$discord_presence" ] && discord_presence="false"
     [ -z "$presence_script_path" ] && presence_script_path="jerrydiscordpresence.py"
-    [ -z "$chafa_options" ] && chafa_options="-f sixel"
+    case "$(uname -s)" in
+        MINGW* | *Msys) [ -z "$chafa_options" ] && chafa_options="-f symbols" ;;
+        *) [ -z "$chafa_options" ] && chafa_options="-f sixel" ;;
+    esac
     [ -z "$show_adult_content" ] && show_adult_content="false"
 }
 
