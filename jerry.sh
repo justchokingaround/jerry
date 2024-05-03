@@ -45,7 +45,7 @@ dep_ch() {
         command -v "$dep" >/dev/null || send_notification "Program \"$dep\" not found. Please install it."
     done
 }
-dep_ch "grep" "$sed" "curl" "fzf" "mpv" || true
+dep_ch "grep" "$sed" "curl" "fzf" || true
 
 if [ "$use_external_menu" = true ]; then
     dep_ch "rofi" || true
