@@ -108,7 +108,12 @@ configuration() {
     [ ! -d "$data_dir" ] && mkdir -p "$data_dir"
     #shellcheck disable=1090
     [ -f "$config_file" ] && . "${config_file}"
-    [ -z "$player" ] && player="mpv"
+    if [ -z "$player" ]; then
+        case "$(uname -s)" in
+            MINGW* | *Msys) player="mpv.exe" ;;
+            *) player="mpv" ;;
+        esac
+    fi
     [ -z "$provider" ] && provider="allanime"
     [ -z "$download_dir" ] && download_dir="$PWD"
     [ -z "$manga_dir" ] && manga_dir="$data_dir/jerry-manga"
@@ -125,10 +130,12 @@ configuration() {
     [ "$no_anilist" = false ] && no_anilist=""
     [ -z "$discord_presence" ] && discord_presence="false"
     [ -z "$presence_script_path" ] && presence_script_path="jerrydiscordpresence.py"
-    case "$(uname -s)" in
-        MINGW* | *Msys) [ -z "$chafa_options" ] && chafa_options="-f symbols" ;;
-        *) [ -z "$chafa_options" ] && chafa_options="-f sixel" ;;
-    esac
+    if [ -z "$chafa_options" ]; then
+        case "$(uname -s)" in
+            MINGW* | *Msys) chafa_options="-f symbols" ;;
+            *) chafa_options="-f sixel" ;;
+        esac
+    fi
     [ -z "$show_adult_content" ] && show_adult_content="false"
 }
 
@@ -1163,7 +1170,7 @@ play_video() {
         *) displayed_title="$title - Ep $((progress + 1))" ;;
     esac
     case $player in
-        mpv)
+        mpv | mpv.exe)
             if [ -f "$history_file" ] && [ -z "$using_number" ]; then
                 history=$(grep -E "^${media_id}[[:space:]]*$((progress + 1))" "$history_file")
             elif [ -f "$history_file" ]; then
@@ -1178,16 +1185,16 @@ play_video() {
             if [ -n "$subs_links" ]; then
                 send_notification "$title" "4000" "$images_cache_dir/$media_id.jpg" "$title"
                 if [ "$discord_presence" = "true" ]; then
-                    eval "$presence_script_path" \"mpv\" \"${title}\" \"${start_year}\" \"$((progress + 1))\" \"${video_link}\" \"${subs_links}\" ${opts} 2>&1 | tee $tmp_position
+                    eval "$presence_script_path" \"$player\" \"${title}\" \"${start_year}\" \"$((progress + 1))\" \"${video_link}\" \"${subs_links}\" ${opts} 2>&1 | tee $tmp_position
                 else
-                    mpv "$video_link" $opts "$subs_arg" "$subs_links" --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
+                    $player "$video_link" $opts "$subs_arg" "$subs_links" --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
                 fi
             else
                 send_notification "$title" "4000" "$images_cache_dir/$media_id.jpg" "$title"
                 if [ "$discord_presence" = "true" ]; then
-                    eval "$presence_script_path" \"mpv\" \"${title}\" \"${start_year}\" \"$((progress + 1))\" \"${video_link}\" \"\" ${opts} 2>&1 | tee $tmp_position
+                    eval "$presence_script_path" \"$player\" \"${title}\" \"${start_year}\" \"$((progress + 1))\" \"${video_link}\" \"\" ${opts} 2>&1 | tee $tmp_position
                 else
-                    mpv "$video_link" $opts --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
+                    $player "$video_link" $opts --force-media-title="$displayed_title" --msg-level=ffmpeg/demuxer=error 2>&1 | tee $tmp_position
                 fi
             fi
             stopped_at=$($sed -nE "s@.*AV: ([0-9:]*) / ([0-9:]*) \(([0-9]*)%\).*@\1@p" "$tmp_position" | tail -1)
