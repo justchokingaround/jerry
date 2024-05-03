@@ -894,12 +894,31 @@ get_episode_info() {
                 sed -nE "s@.*\"title\":.\"([^\"]*)\".*@\1@p" | head -1 | tr ' ' '+')
             request=$(curl -s "https://hdrezka.website/search/?do=search&subaction=search&q=${query}" -A "uwu" --compressed)
             response=$(printf "%s" "$request" | sed "s/<img/\n/g" | sed -nE "s@.*src=\"([^\"]*)\".*<a href=\"https://hdrezka\.website/(.*)/(.*)/(.*)\.html\">([^<]*)</a> <div>([0-9]*).*@\3/\4\t\5 [\6]\t\2@p")
-            [ -z "$response" ] && exit 1
+            if [ -z "$response" ]; then
+                send_notification "Error" "Could not query the anime on hdrezka"
+                exit 1
+            fi
             if [ "$(printf "%s\n" "$response" | wc -l)" -eq 1 ]; then
                 send_notification "Jerry" "" "" "Since there is only one result, it was automatically selected"
                 episode_info=$response
             else
                 episode_info=$(printf "%s" "$response" | launcher "Choose anime: " 2)
+            fi
+            ;;
+        aniworld)
+            query=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/anime/${media_id}.json" |
+                sed -nE "s@.*\"title\":.\"([^\"]*)\".*@\1@p" | head -1 | tr ' ' '+')
+            request=$(curl -s "https://aniworld.to/ajax/search" -X POST --data-raw "keyword=${query}")
+            response=$(printf "%s" "$request" | tr '{}' '\n' | sed -nE "s@.*title\":\"([^\"]*)\".*\"link\":\"([^\"]*)\".*@\1\t\2@p" | sed 's/<\\\/em>//g; s/<em>//g')
+            if [ -z "$response" ]; then
+                send_notification "Error" "Could not query the anime on aniworld"
+                exit 1
+            fi
+            if [ "$(printf "%s\n" "$response" | wc -l)" -eq 1 ]; then
+                send_notification "Jerry" "" "" "Since there is only one result, it was automatically selected"
+                episode_info=$response
+            else
+                episode_info=$(printf "%s" "$response" | launcher "Choose anime: " 1)
             fi
             ;;
         crunchyroll)
@@ -1080,6 +1099,18 @@ get_json() {
             episode_id=$((progress + 1))
             json_data=$(curl -s -X POST "https://hdrezka.website/ajax/get_cdn_series/" -A "uwu" --data-raw "id=${data_id}&translator_id=${translator_id}&season=${season_id}&episode=${episode_id}&action=get_stream" --compressed)
             ;;
+        aniworld)
+            anime_link=$(printf "%s" "$episode_info" | cut -f2 | sed 's/\\//g')
+            episode=$(curl -s "https://aniworld.to${anime_link}" | sed -nE "s@.*href=\"([^\"]*-$((progress + 1)))\".*data-episode-id=\"[0-9]*\".*title=\"([^\"]*)\".*@\1\t\2@p")
+            if [ -z "$episode" ]; then
+                send_notification "Error" "Could not find this episode on aniworld"
+                exit 1
+            fi
+            episode_href=$(printf "%s" "$episode" | cut -f1)
+            episode_title=$(printf "%s" "$episode" | cut -f2)
+            redirect_url=$(curl -s "https://aniworld.to${episode_href}" | sed -nE "s@.*href=\"(/redirect[^\"]*)\".*@\1@p" | head -1)
+            video_link=$(curl -sL "https://aniworld.to${redirect_url}" | sed -nE "s@.*\"(.*\.m3u8[^\"]*)\".*@\1@p" | head -1)
+            ;;
         crunchyroll)
             if [ -n "$cr_token" ]; then
                 video_link=$("$cr_wrapper" --eid "$episode_id" --token "$cr_token")
@@ -1167,6 +1198,7 @@ play_video() {
         aniwatch) displayed_title="$title - Ep $((progress + 1)) $episode_title" ;;
         yugen) displayed_title="$title - Ep $episode_title" ;;
         hdrezka) displayed_title="$episode_title - Ep $((progress + 1))" ;;
+        aniworld) displayed_title="$episode_title" ;;
         *) displayed_title="$title - Ep $((progress + 1))" ;;
     esac
     case $player in
@@ -1274,11 +1306,13 @@ watch_anime() {
         send_notification "Error" "" "" "$title not found"
         exit 1
     fi
-    episode_id=$(printf "%s" "$episode_info" | cut -f1)
-    episode_title=$(printf "%s" "$episode_info" | cut -f2)
-    [ "$provider" = "hdrezka" ] && media_type=$(printf "%s" "$episode_info" | cut -f3)
-    if [ "$episode_id" = "$episode_title" ]; then
-        episode_title=""
+    if [ "$provider" != "aniworld" ]; then
+        episode_id=$(printf "%s" "$episode_info" | cut -f1)
+        episode_title=$(printf "%s" "$episode_info" | cut -f2)
+        [ "$provider" = "hdrezka" ] && media_type=$(printf "%s" "$episode_info" | cut -f3)
+        if [ "$episode_id" = "$episode_title" ]; then
+            episode_title=""
+        fi
     fi
 
     get_json
@@ -1567,6 +1601,7 @@ case "$provider" in
     yugen | yugenanime) provider="yugen" ;;
     hdrezka | rezka) provider="hdrezka" ;;
     crunchyroll | cr) provider="crunchyroll" ;;
+    aniworld) provider="aniworld" ;;
     *) send_notification "Invalid provider" && exit 1 ;;
 esac
 if [ "$image_preview" = true ]; then
