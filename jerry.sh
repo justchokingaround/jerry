@@ -1237,7 +1237,7 @@ play_video() {
         vlc) vlc --play-and-exit --meta-title="${title}" "$video_link" >/dev/null 2>&1 & ;;
         iina) iina --no-stdin --keep-running --mpv-force-media-title="${title}" "$video_link" >/dev/null 2>&1 & ;;
     esac
-    if [ "$player" != "mpv" ]; then
+    if [ "$player" != "mpv" ] && [ "$player" != "mpv.exe" ]; then
         completed_episode=$(printf "Yes\nNo" | launcher "Have you completed watching this episode? [Y/n] ")
         case "$completed_episode" in
             [Yy]*)
