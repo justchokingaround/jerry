@@ -285,7 +285,7 @@ check_update() {
 }
 
 get_input() {
-    if [ "$use_external_menu" = 0 ]; then
+    if [ "$use_external_menu" = false ]; then
         printf "%s" "$1" && read -r query
     else
         if [ -n "$rofi_prompt_config" ]; then
