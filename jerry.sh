@@ -1237,7 +1237,7 @@ play_video() {
         vlc) vlc --play-and-exit --meta-title="${title}" "$video_link" >/dev/null 2>&1 & ;;
         iina) iina --no-stdin --keep-running --mpv-force-media-title="${title}" "$video_link" >/dev/null 2>&1 & ;;
     esac
-    if [ "$player" != "mpv" ]; then
+    if [ "$player" != "mpv" ] && [ "$player" != "mpv.exe" ]; then
         completed_episode=$(printf "Yes\nNo" | launcher "Have you completed watching this episode? [Y/n] ")
         case "$completed_episode" in
             [Yy]*)
@@ -1371,11 +1371,14 @@ binge() {
             watch_anime_choice
             [ -z "$percentage_progress" ] || [ "$percentage_progress" -lt 85 ] && break
             [ $((progress + 1)) = "$episodes_total" ] && break
-            send_notification "Please only select Yes if you have finished watching the episode" "5000"
-            binge_watching=$(printf "Yes\nNo" | launcher "Do you want to keep binge watching? [Y/n] ")
-            case $binge_watching in
-                [Nn]*) break ;;
-            esac
+            if  [ $player != mpv ] && [ $player != mpv.exe ]; then
+                send_notification "Please only select Yes if you have finished watching the episode" "5000"
+                binge_watching=$(printf "Yes\nNo" | launcher "Do you want to keep binge watching? [Y/n] ")
+            
+                case $binge_watching in
+                    [Nn]*) break ;;
+                esac
+            fi
             progress=$((progress + 1))
             resume_from=""
         elif [ "$1" = "MANGA" ]; then
