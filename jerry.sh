@@ -876,7 +876,7 @@ get_episode_info() {
         aniwatch)
             aniwatch_id=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/anime/${media_id}.json" |
                 tr -d '\n ' | tr '}' '\n' | $sed -nE "s@.*\"Zoro\".*\"url\":\".*-([0-9]*)\".*@\1@p")
-            episode_info=$(curl -s "https://aniwatch.to/ajax/v2/episode/list/${aniwatch_id}" | $sed -e "s/</\n/g" -e "s/\\\\//g" | $sed -nE "s_.*a title=\"([^\"]*)\".*data-id=\"([0-9]*)\".*_\2\t\1_p" | $sed -n "$((progress + 1))p")
+            episode_info=$(curl -s "https://hianime.to/ajax/v2/episode/list/${aniwatch_id}" | $sed -e "s/</\n/g" -e "s/\\\\//g" | $sed -nE "s_.*a title=\"([^\"]*)\".*data-id=\"([0-9]*)\".*_\2\t\1_p" | $sed -n "$((progress + 1))p")
             ;;
         yugen)
             href=$(curl -s "https://raw.githubusercontent.com/bal-mackup/mal-backup/master/anilist/anime/${media_id}.json" |
@@ -969,36 +969,18 @@ extract_from_json() {
             rm -r "$cache_dir"
             ;;
         aniwatch)
-            json_key="file"
-            encrypted=$(printf "%s" "$json_data" | tr "{}" "\n" | $sed -nE "s_.*\"${json_key}\":\"([^\"]*)\".*_\1_p" | grep "\.m3u8")
-            if [ -n "$encrypted" ]; then
-                video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | $sed -nE "s_.*\"${json_key}\":\"([^\"]*)\".*_\1_p" | head -1)
-            else
-                json_key="sources"
-                encrypted=$(printf "%s" "$json_data" | tr "{}" "\n" | $sed -nE "s_.*\"${json_key}\":\"([^\"]*)\".*_\1_p")
-                embed_type="6"
-                enikey=$(curl -s "http://zoro-keys.freeddns.org/keys/e${embed_type}/key.txt" | tr -d ' ' |
-                    $sed 's/\[\([0-9]*\),\([0-9]*\)\]/\1-\2/g;s/\[//g;s/\]//g;s/,/ /g')
 
-                encrypted_video_link=$(printf "%s" "$json_data" | tr "{|}" "\n" | $sed -nE "s_.*\"sources\":\"([^\"]*)\".*_\1_p" | head -1)
-
-                final_key=""
-                tmp_encrypted_video_link="$encrypted_video_link"
-                for key in $enikey; do
-                    start="${key%-*}"
-                    start=$((start + 1))
-                    end="${key#*-}"
-                    key=$(printf "%s" "$encrypted_video_link" | cut -c"$start-$end")
-                    final_key="$final_key$key"
-                    tmp_encrypted_video_link=$(printf "%s" "$tmp_encrypted_video_link" | $sed "s|$key||g")
-                done
-
-                # ty @CoolnsX for helping me with figuring out how to implement aes in openssl
-                video_link=$(printf "%s" "$tmp_encrypted_video_link" | base64 -d |
-                    openssl enc -aes-256-cbc -d -md md5 -k "$final_key" 2>/dev/null | $sed -nE "s_.*\"file\":\"([^\"]*)\".*_\1_p")
-                json_data=$(printf "%s" "$json_data" | $sed -e "s|${encrypted_video_link}|${video_link}|")
-            fi
+            video_link=$(printf "%s" "$json_data" | tr '[' '\n' | $sed -nE 's@.*\"file\":\"(.*\.m3u8).*@\1@p' | head -1)
             [ -n "$quality" ] && video_link=$(printf "%s" "$video_link" | $sed -e "s|/playlist.m3u8|/$quality/index.m3u8|")
+
+            subs_links=$(printf "%s" "$json_data" | tr "{}" "\n" | $sed -nE "s@.*\"file\":\"([^\"]*)\",\"label\":\"(.$subs_language)[,\"\ ].*@\1@p")
+            subs_arg="--sub-file"
+            num_subs=$(printf "%s" "$subs_links" | wc -l)
+            if [ "$num_subs" -gt 0 ]; then
+                subs_links=$(printf "%s" "$subs_links" | $sed -e "s/:/\\$path_thing:/g" -e "H;1h;\$!d;x;y/\n/$separator/" -e "s/$separator\$//")
+                subs_arg="--sub-files"
+            fi
+            [ -z "$subs_links" ] && send_notification "No subtitles found"
 
             if [ "$json_output" = true ]; then
                 printf "%s\n" "$json_data"
@@ -1068,11 +1050,11 @@ get_json() {
             json_data=$(curl -e "$allanime_refr" -s -G "https://api.$allanime_base/api" --data-urlencode 'variables={"showId":"'"$episode_id"'","translationType":"'"$translation_type"'","episodeString":"'"$episode_number"'"}' --data-urlencode 'query=query ($showId: String!, $translationType: VaildTranslationTypeEnumType!, $episodeString: String!) {    episode(        showId: $showId        translationType: $translationType        episodeString: $episodeString    ) {        episodeString sourceUrls    }}')
             ;;
         aniwatch)
-            source_id=$(curl -s "https://aniwatch.to/ajax/v2/episode/servers?episodeId=$episode_id" |
+            source_id=$(curl -s "https://hianime.to/ajax/v2/episode/servers?episodeId=$episode_id" |
                 $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"$translation_type\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
             [ -z "$source_id" ] && source_id=$(curl -s "https://aniwatch.to/ajax/v2/episode/servers?episodeId=$episode_id" |
                 $sed "s/</\n/g;s/\\\//g" | $sed -nE "s@.*data-type=\"raw\" data-id=\"([0-9]*)\".*@\1@p" | head -1)
-            embed_link=$(curl -s "https://aniwatch.to/ajax/v2/episode/sources?id=$source_id" | $sed -nE "s_.*\"link\":\"([^\"]*)\".*_\1_p")
+            embed_link=$(curl -s "https://hianime.to/ajax/v2/episode/sources?id=$source_id" | $sed -nE "s_.*\"link\":\"([^\"]*)\".*_\1_p")
 
             # get the juicy links
             parse_embed=$(printf "%s" "$embed_link" | $sed -nE "s_(.*)/embed-(2|4|6)/e-([0-9])/(.*)\?k=1\$_\1\t\2\t\3\t\4_p")
@@ -1371,10 +1353,10 @@ binge() {
             watch_anime_choice
             [ -z "$percentage_progress" ] || [ "$percentage_progress" -lt 85 ] && break
             [ $((progress + 1)) = "$episodes_total" ] && break
-            if  [ $player != mpv ] && [ $player != mpv.exe ]; then
+            if [ $player != mpv ] && [ $player != mpv.exe ]; then
                 send_notification "Please only select Yes if you have finished watching the episode" "5000"
                 binge_watching=$(printf "Yes\nNo" | launcher "Do you want to keep binge watching? [Y/n] ")
-            
+
                 case $binge_watching in
                     [Nn]*) break ;;
                 esac
