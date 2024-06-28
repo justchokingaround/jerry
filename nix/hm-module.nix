@@ -6,7 +6,7 @@ self: {
 }: let
   inherit (lib) mkEnableOption mkPackageOption mkOption types mkIf literalExpression;
 
-  packages = self.packages.${pkgs.stdenvh.hostPlatform.system};
+  packages = self.packages.${pkgs.stdenv.hostPlatform.system};
 
   cfg = config.programs.jerry;
 in {
