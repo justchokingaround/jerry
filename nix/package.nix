@@ -14,7 +14,7 @@
   stdenvNoCC,
   testers,
   rofi,
-  ueberzugpp,
+  chafa,
   jq,
   withRofi ? false,
   imagePreviewSupport ? false,
@@ -50,7 +50,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
       openssl
     ]
     ++ lib.optional withRofi rofi
-    ++ lib.optional imagePreviewSupport ueberzugpp
+    ++ lib.optional imagePreviewSupport chafa
     ++ lib.optional infoSupport jq;
 
   installPhase = ''
