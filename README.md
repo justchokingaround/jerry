@@ -10,9 +10,13 @@ The core idea of the script is that it allows users to watch anime in sync with 
 
 But the script also has a lot of other features, which you can find in the features section.
 
-## Join the discord server!
+## Join the discord server (it is bridged to the matrix space)
 
 ### https://discord.gg/JTDS2CKjQU
+
+## Join the matrix server (I am more active there)
+
+### https://matrix.to/#/#lobster-and-jerry:matrix.org
 
 ---
 ## Table of Contents
