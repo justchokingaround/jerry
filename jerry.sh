@@ -36,8 +36,8 @@ send_notification() {
     fi
     [ -z "$2" ] && timeout=3000 || timeout="$2"
     if [ "$notify" = "true" ]; then
-        [ -z "$3" ] && notify-send -e "$1" "$4" -t "$timeout" -h string:x-dunst-stack-tag:tes
-        [ -n "$3" ] && notify-send -e "$1" "$4" -t "$timeout" -i "$3" -h string:x-dunst-stack-tag:tes
+        [ -z "$3" ] && notify-send -e "$1" "$4" -t "$timeout" -h string:x-canonical-private-synchronous:jerry
+        [ -n "$3" ] && notify-send -e "$1" "$4" -t "$timeout" -i "$3" -h string:x-canonical-private-synchronous:jerry
     fi
 }
 dep_ch() {
