@@ -130,6 +130,7 @@ configuration() {
     [ "$no_anilist" = false ] && no_anilist=""
     [ -z "$discord_presence" ] && discord_presence="false"
     [ -z "$presence_script_path" ] && presence_script_path="jerrydiscordpresence.py"
+    [ -z "$rofi_prompt_config" ] && rofi_prompt_config="$HOME/.config/rofi/config.rasi"
     if [ -z "$chafa_options" ]; then
         case "$(uname -s)" in
             MINGW* | *Msys) chafa_options="-f symbols" ;;
@@ -289,7 +290,7 @@ get_input() {
         printf "%s" "$1" && read -r query
     else
         if [ -n "$rofi_prompt_config" ]; then
-            query=$(printf "" | rofi -theme "$rofi_prompt_config" -sort -dmenu -i -width 1500 -p "" -mesg "$1")
+            query=$(printf "" | rofi -config "$rofi_prompt_config" -sort -dmenu -i -width 1500 -p "" -mesg "$1")
         else
             query=$(printf "" | launcher "$1")
         fi
@@ -310,8 +311,8 @@ EOF
 launcher() {
     case "$use_external_menu" in
         true)
-            [ -z "$2" ] && rofi -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "$1" -matching fuzzy -sorting-method fzf
-            [ -n "$2" ] && rofi -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "$1" -display-columns "$2" -matching fuzzy -sorting-method fzf
+            [ -z "$2" ] && rofi -config "$rofi_prompt_config" -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "$1" -matching fuzzy -sorting-method fzf
+            [ -n "$2" ] && rofi -config "$rofi_prompt_config" -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "$1" -display-columns "$2" -matching fuzzy -sorting-method fzf
             ;;
         *)
             [ -z "$2" ] && fzf --cycle --reverse --prompt "$1"
@@ -408,9 +409,9 @@ image_preview_fzf() {
 
 select_desktop_entry() {
     if [ "$use_external_menu" = true ]; then
-        [ -n "$image_config_path" ] && choice=$(rofi -show drun -drun-categories jerry -filter "$1" -show-icons -theme "$image_config_path" -i -matching fuzzy -sorting-method fzf |
+        [ -n "$image_config_path" ] && choice=$(rofi -config "$rofi_prompt_config" -show drun -drun-categories jerry -filter "$1" -show-icons -theme "$image_config_path" -i -matching fuzzy -sorting-method fzf |
             $sed -nE "s@.*/([0-9]*)\.desktop@\1@p") 2>/dev/null ||
-            choice=$(rofi -show drun -drun-categories jerry -filter "$1" -show-icons -i -matching fuzzy -sorting-method fzf | $sed -nE "s@.*/([0-9]*)\.desktop@\1@p") 2>/dev/null
+            choice=$(rofi -config "$rofi_prompt_config" -show drun -drun-categories jerry -filter "$1" -show-icons -i -matching fuzzy -sorting-method fzf | $sed -nE "s@.*/([0-9]*)\.desktop@\1@p") 2>/dev/null
     else
         image_preview_fzf "$1" "$2" "$3"
     fi
@@ -579,7 +580,7 @@ search_anime_anilist() {
             [ -z "$episodes_total" ] && episodes_total=9999
             if [ "$use_external_menu" = true ]; then
                 if [ -n "$rofi_prompt_config" ]; then
-                    progress=$(printf "" | rofi -theme "$rofi_prompt_config" -sort -dmenu -i -width 1500 -p "" -mesg "Please enter the episode number (1-${episodes_total}): ")
+                    progress=$(printf "" | rofi -config "$rofi_prompt_config" -sort -dmenu -i -width 1500 -p "" -mesg "Please enter the episode number (1-${episodes_total}): ")
                 else
                     progress=$(printf "" | launcher "Please enter the episode number (1-${episodes_total}): ")
                 fi
