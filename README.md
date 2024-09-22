@@ -75,7 +75,7 @@ irm get.scoop.sh | iex
 
 ```ps
 scoop bucket add extras
-scoop install git mpv fzf
+scoop install git extras/mpv fzf
 ```
 3. Install windows terminal (you don't need to have a microsoft account for that)
    https://learn.microsoft.com/en-us/windows/terminal/install
