@@ -1193,6 +1193,7 @@ play_video() {
             fi
             [ -n "$history" ] && resume_from=$(printf "%s" "$history" | cut -f3)
             opts="$player_arguments"
+            [ "$provider" = "allanime" ] && opts="$opts --http-header-fields-append=Referer:https://allanime.day/"
             if [ -n "$resume_from" ]; then
                 opts="$opts --start=${resume_from}"
                 send_notification "Resuming from" "" "" "$resume_from"
