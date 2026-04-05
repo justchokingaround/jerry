@@ -859,7 +859,11 @@ get_episode_info() {
     case "$provider" in
         allanime)
             query_title=$(printf "%s" "$title" | tr ' ' '+')
-            response=$(curl -e "$allanime_refr" -s -G "https://api.$allanime_base/api" --data-urlencode 'variables={"search":{"allowAdult":false,"allowUnknown":false,"query":"'"$query_title"'"},"limit":40,"page":1,"translationType":"sub","countryOrigin":"ALL"}' --data-urlencode 'query=query(        $search: SearchInput        $limit:Int        $page: Int        $translationType: VaildTranslationTypeEnumType        $countryOrigin: VaildCountryOriginEnumType    ) {    shows(        search: $search        limit: $limit        page: $page        translationType: $translationType        countryOrigin: $countryOrigin    ) {        edges {            _id name availableEpisodes __typename       }    }}' | sed 's|Show|\n|g' | sed -nE 's|.*_id":"([^"]*)","name":"([^"]*)".*sub":([1-9][^,]*).*|\1\t\2 (\3 episodes)|p')
+            response=$(curl -s -X POST "https://api.$allanime_base/api" \
+                -H "User-Agent: Mozilla/5.0" \
+                -H "Content-Type: application/json" \
+                -H "Origin: https://allanime.to" \
+                --data-raw '{"variables":{"search":{"allowAdult":false,"allowUnknown":false,"query":"'"$query_title"'"},"limit":40,"page":1,"translationType":"sub","countryOrigin":"ALL"},"query":"query(        $search: SearchInput        $limit:Int        $page: Int        $translationType: VaildTranslationTypeEnumType        $countryOrigin: VaildCountryOriginEnumType    ) {    shows(        search: $search        limit: $limit        page: $page        translationType: $translationType        countryOrigin: $countryOrigin    ) {        edges {            _id name availableEpisodes __typename       }    }}"}' | sed 's|Show|\n|g' | sed -nE 's|.*_id":"([^"]*)","name":"([^"]*)".*sub":([1-9][^,]*).*|\1\t\2 (\3 episodes)|p')
             [ -z "$response" ] && exit 1
             # if it is only one line long, then auto select it
             if [ "$(printf "%s\n" "$response" | wc -l)" -eq 1 ]; then
@@ -1039,7 +1043,11 @@ extract_from_json() {
 get_json() {
     case "$provider" in
         allanime)
-            json_data=$(curl -e "$allanime_refr" -s -G "https://api.$allanime_base/api" --data-urlencode 'variables={"showId":"'"$episode_id"'","translationType":"'"$translation_type"'","episodeString":"'"$episode_number"'"}' --data-urlencode 'query=query ($showId: String!, $translationType: VaildTranslationTypeEnumType!, $episodeString: String!) {    episode(        showId: $showId        translationType: $translationType        episodeString: $episodeString    ) {        episodeString sourceUrls    }}')
+            json_data=$(curl -s -X POST "https://api.$allanime_base/api" \
+                -H "User-Agent: Mozilla/5.0" \
+                -H "Content-Type: application/json" \
+                -H "Origin: https://allanime.to" \
+                --data-raw '{"variables":{"showId":"'"$episode_id"'","translationType":"'"$translation_type"'","episodeString":"'"$episode_number"'"},"query":"query ($showId: String!, $translationType: VaildTranslationTypeEnumType!, $episodeString: String!) {    episode(        showId: $showId        translationType: $translationType        episodeString: $episodeString    ) {        episodeString sourceUrls    }}"}')
             ;;
         aniwatch)
             source_id=$(curl -s "https://hianime.to/ajax/v2/episode/servers?episodeId=$episode_id" |
