@@ -170,6 +170,7 @@ For more information on the configuration file, please check the wiki.
 - curl
 - fzf
 - mpv (Video Player)
+- openssl (allanime data decryption)
 - rofi (optional)
 - ueberzugpp (image preview in fzf) (optional)
 - jq (for displaying anime/manga info) (optional)

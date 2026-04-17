@@ -1040,6 +1040,22 @@ extract_from_json() {
     [ "$((progress + 1))" -eq "$episodes_total" ] && status="COMPLETED" || status="CURRENT"
 }
 
+decode_tobeparsed() {
+    blob="$1"
+    tmp="$(mktemp)"
+    ct="$(mktemp)"
+    key="$(printf '%s' 'SimtVuagFbGR2K7P' | openssl dgst -sha256 -binary | od -A n -t x1 | tr -d ' \n')"
+    printf '%s' "$blob" | openssl enc -d -base64 -A >"$tmp"
+    len="$(wc -c <"$tmp" | tr -d ' ')"
+    iv="$(dd if="$tmp" bs=1 count=12 2>/dev/null | od -A n -t x1 | tr -d ' \n')"
+    ct_len=$((len - 28))
+    dd if="$tmp" bs=1 skip=12 count="$ct_len" 2>/dev/null >"$ct"
+    ctr="${iv}00000002"
+    plain="$(openssl enc -d -aes-256-ctr -K "$key" -iv "$ctr" -nosalt -nopad <"$ct" 2>/dev/null)"
+    rm -f "$tmp" "$ct"
+    printf '%s' "$plain"
+}
+
 get_json() {
     case "$provider" in
         allanime)
@@ -1048,6 +1064,10 @@ get_json() {
                 -H "Content-Type: application/json" \
                 -H "Origin: https://allanime.to" \
                 --data-raw '{"variables":{"showId":"'"$episode_id"'","translationType":"'"$translation_type"'","episodeString":"'"$episode_number"'"},"query":"query ($showId: String!, $translationType: VaildTranslationTypeEnumType!, $episodeString: String!) {    episode(        showId: $showId        translationType: $translationType        episodeString: $episodeString    ) {        episodeString sourceUrls    }}"}')
+            if printf "%s" "$json_data" | grep -q '"tobeparsed"'; then
+                blob="$(printf "%s" "$json_data" | sed -nE 's|.*"tobeparsed":"([^"]*)".*|\1|p')"
+                json_data="$(decode_tobeparsed "$blob")"
+            fi
             ;;
         aniwatch)
             source_id=$(curl -s "https://hianime.to/ajax/v2/episode/servers?episodeId=$episode_id" |
