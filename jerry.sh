@@ -160,9 +160,11 @@ https://anilist.co/api/v2/oauth/authorize?client_id=9857&response_type=token : "
 ## ALLANIME ##
 # this has been adapted from ani-cli
 
-# extract the video links from reponse of embed urls, extract mp4 links form m3u8 lists
+# extract the video links from response of embed urls, extract mp4 links from m3u8 lists
 get_links() {
-    episode_link="$(curl -e "$allanime_refr" -s "https://${allanime_base}$*" | sed 's|},{|\n|g' | sed -nE 's|.*link":"([^"]*)".*"resolutionStr":"([^"]*)".*|\2 >\1|p;s|.*hls","url":"([^"]*)".*"hardsub_lang":"en-US".*|\1|p')"
+    response="$(curl -e "$allanime_refr" -s "https://${allanime_base}$*" -A "$agent")"
+    episode_link="$(printf '%s' "$response" | sed 's|},{|\n|g' | sed -nE 's|.*link":"([^"]*)".*"resolutionStr":"([^"]*)".*|\2 >\1|p;s|.*hls","url":"([^"]*)".*"hardsub_lang":"en-US".*|\1|p')"
+
     case "$episode_link" in
         *repackager.wixmp.com*)
             extract_link=$(printf "%s" "$episode_link" | cut -d'>' -f2 | sed 's|repackager.wixmp.com/||g;s|\.urlset.*||g')
@@ -170,34 +172,34 @@ get_links() {
                 printf "%s >%s\n" "$j" "$extract_link" | sed "s|,[^/]*|${j}|g"
             done | sort -nr
             ;;
-        *vipanicdn* | *anifastcdn*)
-            if printf "%s" "$episode_link" | head -1 | grep -q "original.m3u"; then
-                printf "%s" "$episode_link"
-            else
-                extract_link=$(printf "%s" "$episode_link" | head -1 | cut -d'>' -f2)
-                relative_link=$(printf "%s" "$extract_link" | sed 's|[^/]*$||')
-                curl -e "$allanime_refr" -s "$extract_link" -A "uwu" | sed 's|^#.*x||g; s|,.*|p|g; /^#/d; $!N; s|\n| >|' | sed "s|>|>${relative_link}|g" | sort -nr
-            fi
+        *master.m3u8*)
+            m3u8_refr=$(printf '%s' "$response" | sed -nE 's|.*Referer":"([^"]*)".*|\1|p') && printf '%s\n' "m3u8_refr >$m3u8_refr" >"$cache_dir/m3u8_refr"
+            extract_link=$(printf "%s" "$episode_link" | head -1 | cut -d'>' -f2)
+            relative_link=$(printf "%s" "$extract_link" | sed 's|[^/]*$||')
+            m3u8_streams="$(curl -e "$m3u8_refr" -s "$extract_link" -A "$agent")"
+            printf "%s" "$m3u8_streams" | grep -q "EXTM3U" && printf "%s" "$m3u8_streams" | sed 's|^#EXT-X-STREAM.*x||g; s|,.*|p|g; /^#/d; $!N; s|\n| >|;/EXT-X-I-FRAME/d' |
+                sed "s|>|cc>${relative_link}|g" | sort -nr
+            printf '%s' "$response" | sed -nE 's|.*"subtitles":\[\{"lang":"en","label":"English","default":"default","src":"([^"]*)".*|subtitle >\1|p' >"$cache_dir/suburl"
             ;;
         *) [ -n "$episode_link" ] && printf "%s\n" "$episode_link" ;;
     esac
+
+    printf "%s" "$*" | grep -q "tools.fast4speed.rsvp" && printf "%s\n" "Yt >$*"
     printf "\033[1;32m%s\033[0m Links Fetched\n" "$provider_name" 1>&2
 }
 
-# innitialises provider_name and provider_id. First argument is the provider name, 2nd is the regex that matches that provider's link
+# initialises provider_name and provider_id. First argument is the provider name, 2nd is the regex that matches that provider's link
 provider_init() {
     provider_name=$1
-    provider_id=$(printf "%s" "$resp" | sed -n "$2" | head -1 | cut -d':' -f2 | sed 's/../&\n/g' | sed 's/^01$/9/g;s/^08$/0/g;s/^05$/=/g;s/^0a$/2/g;s/^0b$/3/g;s/^0c$/4/g;s/^07$/?/g;s/^00$/8/g;s/^5c$/d/g;s/^0f$/7/g;s/^5e$/f/g;s/^17$/\//g;s/^54$/l/g;s/^09$/1/g;s/^48$/p/g;s/^4f$/w/g;s/^0e$/6/g;s/^5b$/c/g;s/^5d$/e/g;s/^0d$/5/g;s/^53$/k/g;s/^1e$/\&/g;s/^5a$/b/g;s/^59$/a/g;s/^4a$/r/g;s/^4c$/t/g;s/^4e$/v/g;s/^57$/o/g;s/^51$/i/g;' | tr -d '\n' | sed "s/\/clock/\/clock\.json/")
+    provider_id=$(printf "%s" "$resp" | sed -n "$2" | head -1 | cut -d':' -f2 | sed 's/../&\n/g' | sed 's/^79$/A/g;s/^7a$/B/g;s/^7b$/C/g;s/^7c$/D/g;s/^7d$/E/g;s/^7e$/F/g;s/^7f$/G/g;s/^70$/H/g;s/^71$/I/g;s/^72$/J/g;s/^73$/K/g;s/^74$/L/g;s/^75$/M/g;s/^76$/N/g;s/^77$/O/g;s/^68$/P/g;s/^69$/Q/g;s/^6a$/R/g;s/^6b$/S/g;s/^6c$/T/g;s/^6d$/U/g;s/^6e$/V/g;s/^6f$/W/g;s/^60$/X/g;s/^61$/Y/g;s/^62$/Z/g;s/^59$/a/g;s/^5a$/b/g;s/^5b$/c/g;s/^5c$/d/g;s/^5d$/e/g;s/^5e$/f/g;s/^5f$/g/g;s/^50$/h/g;s/^51$/i/g;s/^52$/j/g;s/^53$/k/g;s/^54$/l/g;s/^55$/m/g;s/^56$/n/g;s/^57$/o/g;s/^48$/p/g;s/^49$/q/g;s/^4a$/r/g;s/^4b$/s/g;s/^4c$/t/g;s/^4d$/u/g;s/^4e$/v/g;s/^4f$/w/g;s/^40$/x/g;s/^41$/y/g;s/^42$/z/g;s/^08$/0/g;s/^09$/1/g;s/^0a$/2/g;s/^0b$/3/g;s/^0c$/4/g;s/^0d$/5/g;s/^0e$/6/g;s/^0f$/7/g;s/^00$/8/g;s/^01$/9/g;s/^15$/-/g;s/^16$/./g;s/^67$/_/g;s/^46$/~/g;s/^02$/:/g;s/^17$/\//g;s/^07$/?/g;s/^1b$/#/g;s/^63$/\[/g;s/^65$/\]/g;s/^78$/@/g;s/^19$/!/g;s/^1c$/$/g;s/^1e$/&/g;s/^10$/\(/g;s/^11$/\)/g;s/^12$/*/g;s/^13$/+/g;s/^14$/,/g;s/^03$/;/g;s/^05$/=/g;s/^1d$/%/g' | tr -d '\n' | sed "s/\/clock/\/clock\.json/")
 }
 
 generate_links() {
     case $1 in
-        # using gogoanime as the default provider since it provides m3u8 links and bc --start doesn't work with mp4 links (idk why)
-        1) provider_init "gogoanime" "/Luf-mp4 :/p" ;; # gogoanime(m3u8)(multi)
-        2) provider_init "wixmp" "/Default :/p" ;;     # wixmp(default)(m3u8)(multi) -> (mp4)(multi)
-        3) provider_init "dropbox" "/Sak :/p" ;;       # dropbox(mp4)(single)
-        4) provider_init "wetransfer" "/Kir :/p" ;;    # wetransfer(mp4)(single)
-        5) provider_init "sharepoint" "/S-mp4 :/p" ;;  # sharepoint(mp4)(single)
+        1) provider_init "wixmp" "/Default :/p" ;;    # wixmp(default)(m3u8)(multi) -> (mp4)(multi)
+        2) provider_init "youtube" "/Yt-mp4 :/p" ;;   # youtube(mp4)(single)
+        3) provider_init "sharepoint" "/S-mp4 :/p" ;; # sharepoint(mp4)(single)
+        *) provider_init "hianime" "/Luf-Mp4 :/p" ;;  # hianime(m3u8)(multi)
     esac
     [ -n "$provider_id" ] && get_links "$provider_id"
 }
@@ -948,7 +950,7 @@ extract_from_json() {
             resp=$(printf "%s" "$json_data" | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*sourceUrl":"--([^"]*)".*sourceName":"([^"]*)".*|\2 :\1|p')
             # generate links into sequential files
             cache_dir="$(mktemp -d)"
-            link_providers="1 2 3 4 5"
+            link_providers="1 2 3 4"
             for link_provider in $link_providers; do
                 generate_links "$link_provider" >"$cache_dir"/"$link_provider" &
             done
@@ -1041,18 +1043,14 @@ extract_from_json() {
 }
 
 decode_tobeparsed() {
-    blob="$1"
     tmp="$(mktemp)"
-    ct="$(mktemp)"
-    key="$(printf '%s' 'SimtVuagFbGR2K7P' | openssl dgst -sha256 -binary | od -A n -t x1 | tr -d ' \n')"
-    printf '%s' "$blob" | openssl enc -d -base64 -A >"$tmp"
-    len="$(wc -c <"$tmp" | tr -d ' ')"
-    iv="$(dd if="$tmp" bs=1 count=12 2>/dev/null | od -A n -t x1 | tr -d ' \n')"
-    ct_len=$((len - 28))
-    dd if="$tmp" bs=1 skip=12 count="$ct_len" 2>/dev/null >"$ct"
+    printf '%s' "$1" | base64 -d >"$tmp"
+    file_size="$(wc -c <"$tmp")"
+    iv="$(dd if="$tmp" bs=1 skip=1 count=12 2>/dev/null | od -A n -t x1 | tr -d ' \n')"
     ctr="${iv}00000002"
-    plain="$(openssl enc -d -aes-256-ctr -K "$key" -iv "$ctr" -nosalt -nopad <"$ct" 2>/dev/null)"
-    rm -f "$tmp" "$ct"
+    ct_len=$((file_size - 13 - 16))
+    plain="$(dd if="$tmp" bs=1 skip=13 count="$ct_len" 2>/dev/null | openssl enc -d -aes-256-ctr -K "$allanime_key" -iv "$ctr" -nosalt -nopad 2>/dev/null)"
+    rm -f "$tmp"
     printf '%s' "$plain"
 }
 
@@ -1600,8 +1598,10 @@ query="$(printf "%s" "$query" | tr ' ' '-' | $sed "s/^-//g")"
 case "$provider" in
     allanime)
         provider="allanime"
-        allanime_refr="https://allanime.to"
+        allanime_refr="https://allmanga.to"
         allanime_base="allanime.day"
+        allanime_key="$(printf '%s' 'Xot36i3lK3:v1' | openssl dgst -sha256 -binary | od -A n -t x1 | tr -d ' \n')"
+        agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0"
         ;;
     zoro | kaido | aniwatch) provider="aniwatch" ;;
     yugen | yugenanime) provider="yugen" ;;
