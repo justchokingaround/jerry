@@ -199,9 +199,15 @@ generate_links() {
         1) provider_init "wixmp" "/Default :/p" ;;    # wixmp(default)(m3u8)(multi) -> (mp4)(multi)
         2) provider_init "youtube" "/Yt-mp4 :/p" ;;   # youtube(mp4)(single)
         3) provider_init "sharepoint" "/S-mp4 :/p" ;; # sharepoint(mp4)(single)
+        5) provider_init "filemoon" "/Fm-mp4 :/p" ;;  # filemoon(m3u8)(single)
         *) provider_init "hianime" "/Luf-Mp4 :/p" ;;  # hianime(m3u8)(multi)
     esac
-    [ -n "$provider_id" ] && get_links "$provider_id"
+    [ -n "$provider_id" ] && provider_id="${provider_id#/https://${allanime_base}}"
+    if [ "$1" = "5" ] && [ -n "$provider_id" ]; then
+        get_filemoon_links "$provider_id"
+    else
+        [ -n "$provider_id" ] && get_links "$provider_id"
+    fi
 }
 
 select_quality() {
@@ -950,7 +956,7 @@ extract_from_json() {
             resp=$(printf "%s" "$json_data" | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*sourceUrl":"--([^"]*)".*sourceName":"([^"]*)".*|\2 :\1|p')
             # generate links into sequential files
             cache_dir="$(mktemp -d)"
-            link_providers="1 2 3 4"
+            link_providers="1 2 3 4 5"
             for link_provider in $link_providers; do
                 generate_links "$link_provider" >"$cache_dir"/"$link_provider" &
             done
@@ -1054,14 +1060,67 @@ decode_tobeparsed() {
     printf '%s' "$plain"
 }
 
+b64url_to_hex() {
+    _len=$(printf '%s' "$1" | wc -c | tr -d ' ')
+    _mod=$(($_len % 4))
+    case $_mod in
+        2) _pad="==" ;;
+        3) _pad="=" ;;
+        *) _pad="" ;;
+    esac
+    printf '%s%s' "$1" "$_pad" | tr -- '-_' '+/' | base64 -d | od -A n -t x1 | tr -d ' \n'
+}
+
+get_filemoon_links() {
+    response="$(curl -e "$allanime_refr" -s "https://${allanime_base}$1" -A "$agent")"
+    _fm_json="$(printf '%s' "$response" | tr -d '\n ' | tr ',' '\n')"
+    iv="$(printf '%s' "$_fm_json" | sed -nE 's|^"iv":"([^"]*)"$|\1|p')"
+    payload="$(printf '%s' "$_fm_json" | sed -nE 's|^"payload":"([^"]*)"$|\1|p')"
+    kp1="$(printf '%s' "$_fm_json" | sed -nE 's|^"key_parts":\["([^"]*)"$|\1|p')"
+    kp2="$(printf '%s' "$_fm_json" | sed -nE 's|^"([A-Za-z0-9_-]+)"\]$|\1|p' | head -1)"
+    key_hex="$(b64url_to_hex "$kp1")$(b64url_to_hex "$kp2")"
+    iv_hex="$(b64url_to_hex "$iv")00000002"
+    tmp="$(mktemp)"
+    _fm_len=$(printf '%s' "$payload" | wc -c | tr -d ' ')
+    _fm_mod=$(($_fm_len % 4))
+    case $_fm_mod in
+        2) _fm_pad="==" ;;
+        3) _fm_pad="=" ;;
+        *) _fm_pad="" ;;
+    esac
+    printf '%s%s' "$payload" "$_fm_pad" | tr -- '-_' '+/' | base64 -d >"$tmp"
+    ct_len=$(($(wc -c <"$tmp") - 16))
+    plain="$(dd if="$tmp" bs=1 count="$ct_len" 2>/dev/null | openssl enc -d -aes-256-ctr -K "$key_hex" -iv "$iv_hex" -nosalt -nopad 2>/dev/null)"
+    rm -f "$tmp"
+    printf '%s' "$plain" | tr '{}\[\]' '\n' |
+        sed -nE 's|.*"url":"([^"]*)".*"height":([0-9]+).*|\2 >\1|p;s|.*"height":([0-9]+).*"url":"([^"]*)".*|\1 >\2|p' |
+        sed 's|\\u0026|\&|g;s|\\u003D|=|g' | sort -rn
+    printf "\033[1;32m%s\033[0m Links Fetched\n" "Filemoon" 1>&2
+}
+
 get_json() {
     case "$provider" in
         allanime)
-            json_data=$(curl -s -X POST "https://api.$allanime_base/api" \
-                -H "User-Agent: Mozilla/5.0" \
-                -H "Content-Type: application/json" \
-                -H "Origin: https://allanime.to" \
-                --data-raw '{"variables":{"showId":"'"$episode_id"'","translationType":"'"$translation_type"'","episodeString":"'"$episode_number"'"},"query":"query ($showId: String!, $translationType: VaildTranslationTypeEnumType!, $episodeString: String!) {    episode(        showId: $showId        translationType: $translationType        episodeString: $episodeString    ) {        episodeString sourceUrls    }}"}')
+            episode_embed_gql='query ($showId: String!, $translationType: VaildTranslationTypeEnumType!, $episodeString: String!) { episode( showId: $showId translationType: $translationType episodeString: $episodeString ) { episodeString sourceUrls }}'
+
+            query_hash="d405d0edd690624b66baba3068e0edc3ac90f1597d898a1ec8db4e5c43c00fec"
+            query_vars="{\"showId\":\"$episode_id\",\"translationType\":\"$translation_type\",\"episodeString\":\"$episode_number\"}"
+            query_ext="{\"persistedQuery\":{\"version\":1,\"sha256Hash\":\"$query_hash\"}}"
+
+            encoded_vars=$(printf '%s' "$query_vars" | sed 's/"/%22/g; s/:/%3A/g; s/{/%7B/g; s/}/%7D/g; s/,/%2C/g')
+            encoded_ext=$(printf '%s' "$query_ext" | sed 's/"/%22/g; s/:/%3A/g; s/{/%7B/g; s/}/%7D/g; s/,/%2C/g; s/ /%20/g')
+
+            api_url="${allanime_api}/api?variables=${encoded_vars}&extensions=${encoded_ext}"
+
+            json_data="$(curl -e "$allanime_refr" -s -A "$agent" -H "Origin: https://youtu-chan.com" "$api_url")"
+
+            if [ -z "$json_data" ] || ! printf "%s" "$json_data" | grep -q "tobeparsed"; then
+                json_data=$(curl -s -X POST "https://api.$allanime_base/api" \
+                    -H "User-Agent: Mozilla/5.0" \
+                    -H "Content-Type: application/json" \
+                    -H "Origin: https://allanime.to" \
+                    --data-raw '{"variables":{"showId":"'"$episode_id"'","translationType":"'"$translation_type"'","episodeString":"'"$episode_number"'"},"query":"query ($showId: String!, $translationType: VaildTranslationTypeEnumType!, $episodeString: String!) {    episode(        showId: $showId        translationType: $translationType        episodeString: $episodeString    ) {        episodeString sourceUrls    }}"}')
+            fi
             if printf "%s" "$json_data" | grep -q '"tobeparsed"'; then
                 blob="$(printf "%s" "$json_data" | sed -nE 's|.*"tobeparsed":"([^"]*)".*|\1|p')"
                 json_data="$(decode_tobeparsed "$blob")"
@@ -1597,9 +1656,9 @@ done
 query="$(printf "%s" "$query" | tr ' ' '-' | $sed "s/^-//g")"
 case "$provider" in
     allanime)
-        provider="allanime"
         allanime_refr="https://allmanga.to"
         allanime_base="allanime.day"
+        allanime_api="https://api.allanime.day"
         allanime_key="$(printf '%s' 'Xot36i3lK3:v1' | openssl dgst -sha256 -binary | od -A n -t x1 | tr -d ' \n')"
         agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0"
         ;;
