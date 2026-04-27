@@ -427,80 +427,177 @@ select_desktop_entry() {
 
 #### ANILIST ANIME FUNCTIONS ####
 get_anime_from_list() {
-    anime_list=$(curl -s -X POST "$anilist_base" \
+    graphql_query=$(cat << 'EOF'
+query($userId: Int, $type: MediaType, $status_in: [MediaListStatus]) {
+  MediaListCollection(userId: $userId, type: $type, status_in: $status_in) {
+    lists {
+      entries {
+        ...mediaListEntry
+      }
+    }
+  }
+}
+
+fragment mediaListEntry on MediaList {
+  mediaId
+  status
+  score
+  progress
+  media {
+    title {
+      userPreferred
+    }
+    coverImage {
+      extraLarge
+    }
+    status(version: 2)
+    episodes
+    nextAiringEpisode {
+      timeUntilAiring
+      episode
+    }
+    startDate {
+      year
+    }
+  }
+}
+EOF
+)
+
+    # Prepare GraphQL query as a single line and wrap in escaped quotes
+    graphql_query="\"${graphql_query//[[:space:]]/ }\""
+
+    # Prepare json list of statuses from $1 argument
+    status_list="[\"${1//|/\",\"}\"]"
+
+    anime_list_json=$(curl -s -X POST "$anilist_base" \
         -H 'Content-Type: application/json' \
         -H "Authorization: Bearer $access_token" \
-        -d "{\"query\":\"query(\$userId:Int,\$userName:String,\$type:MediaType){MediaListCollection(userId:\$userId,userName:\$userName,type:\$type){lists{name isCustomList isCompletedList:isSplitCompletedList entries{...mediaListEntry}}user{id name avatar{large}mediaListOptions{scoreFormat rowOrder animeList{sectionOrder customLists splitCompletedSectionByFormat theme}mangaList{sectionOrder customLists splitCompletedSectionByFormat theme}}}}}fragment mediaListEntry on MediaList{id mediaId status score progress progressVolumes repeat priority private hiddenFromStatusLists customLists advancedScores notes updatedAt startedAt{year month day}completedAt{year month day}media{id title{userPreferred romaji english native}coverImage{extraLarge large}type format status(version:2)episodes volumes chapters averageScore popularity isAdult countryOfOrigin genres bannerImage nextAiringEpisode{airingAt timeUntilAiring episode} startDate{year month day}}}\",\"variables\":{\"userId\":$user_id,\"type\":\"ANIME\"}}" | $sed "s@},{@\n@g" | $sed -nE "s@.*\"mediaId\":([0-9]*),\"status\":\"($1)\",\"score\":(.*),\"progress\":([0-9]*),.*\"userPreferred\":\"([^\"]*)\".*\"coverImage\":\{\"extraLarge\":\"([^\"]*)\".*\"episode([\"]*)s*[\"]*:([0-9]*).*\"startDate\":\{\"year\":([0-9]*).*@\6\t\1\t\5 \(\9\) \4|\8 episodes \7 \[\3\]@p" | $sed 's/\\\//\//g;s/\"/(releasing)/')
-    if [ -z "$anime_list" ]; then
+        -d "{
+            \"query\":$graphql_query,
+            \"variables\":{
+            \"userId\":$user_id,
+            \"type\":\"ANIME\",
+            \"status_in\":$status_list
+        }
+        }" | jq -r '.data.MediaListCollection.lists.[].entries.[]')
+
+    if [ "$anime_list_json" = "" ]; then
         send_notification "No anime found in your list" "2000"
         exit 1
     fi
-    if [ "$use_external_menu" = true ]; then
-        case "$image_preview" in
-            true)
-                download_thumbnails "$anime_list" "1"
-                select_desktop_entry "" "Choose anime: " "$anime_list"
-                [ -z "$choice" ] && exit 1
-                start_year=$(printf "%s" "$choice" | $sed -nE "s@.*\(([0-9?]{4})\).*@\1@p")
-                choice=$(printf "%s" "$choice" | $sed -nE "s@\([0-9?]{4}\)@ @p") # remove year from the title
-                media_id=$(printf "%s" "$choice" | cut -d\  -f1)
-                title=$(printf "%s" "$choice" | $sed -nE "s@$media_id (.*) [0-9?|]* episodes.*@\1@p" | $sed -E 's|\\u.{4}|+|g')
-                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
-                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
-                [ -z "$episodes_total" ] && episodes_total=9999
-                score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\].*@\1@p")
-                ;;
-            *)
+
+    anime_list_json=$(echo "$anime_list_json" | jq -r '
+        # Extract fields to simplify the final list, such as title, score, and progress
+        .media.coverImage.extraLarge as $cover
+        | .mediaId as $mediaId
+        | .media.title.userPreferred as $title
+        | .media.startDate.year as $start_year
+        | .progress as $progress
+        | .media.episodes as $episodes_total
+        | .score as $score
+
+        # Handle special case for "next airing episode" and calculate released episodes
+        | (
+            if .media.nextAiringEpisode == null then
+                null
+            else
+                .media.nextAiringEpisode.episode - 1
+            end
+        ) as $released
+
+        # Handle 'RELEASING' status, adding time until next episode as a string
+        | (
+            if .media.status == "RELEASING" and .media.nextAiringEpisode != null then
+                .media.nextAiringEpisode.episode as $episode
+                | .media.nextAiringEpisode.timeUntilAiring as $seconds
+                | (
+                    if $seconds == 0 then
+                        "?"
+                    elif $seconds < 60*60 then
+                        "\($seconds / 60 | round) minutes"
+                    elif $seconds < 24*60*60 then
+                        "\($seconds / (60*60) | round) hours"
+                    else
+                        "\($seconds / (24*60*60) | round) days"
+                    end
+                ) as $time_remaining
+                | "episode \($episode // "?") in \($time_remaining)"
+            else .media.status
+            end
+        ) as $status
+
+        # Return modified json MediaList elements as a stream
+        | {
+            cover: $cover,
+            mediaId: $mediaId,
+            title: $title,
+            start_year: $start_year,
+            progress: $progress,
+            released: $released,
+            episodes_total: $episodes_total,
+            status: $status,
+            score: $score
+        }
+    ' )
+
+    anime_list=$(echo "$anime_list_json" | jq -r '
+        # Prepare episode_info string
+        (
+            if .released == null then
+                "\(.progress)|\(.episodes_total // "?")"
+            else
+                "\(.progress)|\(.released)|\(.episodes_total // "?")"
+            end
+        ) as $episode_info
+
+        # If status is FINISHED, show nothing
+        # Otherwise wrap in ()
+        | (
+            if .status == "FINISHED" then
+                ""
+            else
+                " (\(.status))"
+            end
+        ) as $formatted_status
+
+        # Return formatted list for menus
+        | "\(.cover)\t\(.mediaId)\t\(.title) (\(.start_year)) \($episode_info) episodes\($formatted_status) [\(.score)]"
+    ')
+
+    if [ "$image_preview" = true ]; then
+        download_thumbnails "$anime_list" "2"
+        select_desktop_entry "" "Choose anime: " "$anime_list"
+        [ -z "$choice" ] && exit 1
+        if [ "$use_external_menu" = true ]; then
+                media_id=${choice%%[[:space:]]*}
+        else
+                media_id=$(echo "$choice" | cut -f2)
+        fi
+    else
+        if [ "$use_external_menu" = true ]; then
                 tmp_anime_list=$(printf "%s" "$anime_list" | $sed -nE "s@(.*\.[jpneg]*)[[:space:]]*([0-9]*)[[:space:]]*(.*)@\3\t\2\t\1@p")
                 choice=$(printf "%s" "$tmp_anime_list" | launcher "Choose anime: " "1")
                 [ -z "$choice" ] && exit 1
-                start_year=$(printf "%s" "$choice" | $sed -nE "s@.*\(([0-9?]{4})\).*@\1@p")
-                choice=$(printf "%s" "$choice" | $sed -nE "s@\([0-9?]{4}\)@ @p") # remove year from the title
-                media_id=$(printf "%s" "$choice" | cut -f2)
-                title=$(printf "%s" "$choice" | $sed -nE "s@(.*) [0-9?|]* episodes.*@\1@p" | $sed -E 's|\\u.{4}|+|g')
-                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
-                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
-                [ -z "$episodes_total" ] && episodes_total=9999
-                score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\].*@\1@p")
-                ;;
-        esac
-    else
-        case "$image_preview" in
-            true)
-                download_thumbnails "$anime_list" "2"
-                select_desktop_entry "" "Choose anime: " "$anime_list"
-                [ -z "$choice" ] && exit 0
-                start_year=$(printf "%s" "$choice" | $sed -nE "s@.*\(([0-9?]{4})\).*@\1@p")
-                choice=$(printf "%s" "$choice" | $sed -nE "s@\([0-9?]{4}\)@ @p") # remove year from the title
-                media_id=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\.jpg@\1@p")
-                title=$(printf "%s" "$choice" | $sed -nE "s@[[:space:]]*(.*) [0-9?|]* episodes.*@\1@p" | $sed -E 's|\\u.{4}|+|g')
-                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
-                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
-                [ -z "$episodes_total" ] && episodes_total=9999
-                score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\].*@\1@p")
-                ;;
-            *)
+                media_id=$(echo "$choice" | cut -f2)
+        else
                 choice=$(printf "%s" "$anime_list" | launcher "Choose anime: " "3")
                 [ -z "$choice" ] && exit 1
-                start_year=$(printf "%s" "$choice" | $sed -nE "s@.*\(([0-9?]{4})\).*@\1@p")
-                choice=$(printf "%s" "$choice" | $sed -nE "s@\([0-9?]{4}\)@ @p") # remove year from the title
-                media_id=$(printf "%s" "$choice" | cut -f2)
-                title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* episodes.*@\1@p" | $sed -E 's|\\u.{4}|+|g')
-                [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
-                episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
-                [ -z "$episodes_total" ] && episodes_total=9999
-                score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\].*@\1@p")
-                ;;
-        esac
-
-        [ -z "$choice" ] && exit 1
-        media_id=$(printf "%s" "$choice" | cut -f2)
-        title=$(printf "%s" "$choice" | $sed -nE "s@.*$media_id\t(.*) [0-9?|]* episodes.*@\1@p" | $sed -E 's|\\u.{4}|+|g')
-        [ -z "$progress" ] && progress=$(printf "%s" "$choice" | $sed -nE "s@.* ([0-9]*)\|[0-9?]* episodes.*@\1@p")
-        episodes_total=$(printf "%s" "$choice" | $sed -nE "s@.*[\| ]([0-9?]*) episodes.*@\1@p")
-        [ -z "$episodes_total" ] && episodes_total=9999
-        score=$(printf "%s" "$choice" | $sed -nE "s@.* episodes \[([0-9]*)\].*@\1@p")
+                media_id=${choice#*[[:space:]]}
+                media_id=${media_id%%[[:space:]]*}
+        fi
     fi
+
+    # Extract variables
+    IFS=$'\t' read -r title start_year progress released episodes_total score < <(
+        echo "$anime_list_json" \
+            | jq -r --arg id "$media_id" '
+                select(.mediaId == ($id | tonumber))
+                | "\(.title)\t\(.start_year)\t\(.progress)\t\(.released)\t\(.episodes_total // 999999)\t\(.score)"
+            '
+    )
+    title=$(echo "$title" | sed -E 's|\\u.{4}|+|g')
+    [ "$released" != "null" ] && [ "$progress" -eq "$released" ] && progress=$((progress - 1))
 }
 
 search_anime_anilist() {
@@ -1428,9 +1525,10 @@ read_manga_choice() {
 binge() {
     while :; do
         if [ "$1" = "ANIME" ]; then
+            [ -n "$progress" ] && [ "$progress" == "$episodes_total" ] && break
+            [ -n "$progress" ] && [ "$progress" == "$released" ] && break
             watch_anime_choice
             [ -z "$percentage_progress" ] || [ "$percentage_progress" -lt 85 ] && break
-            [ $((progress + 1)) = "$episodes_total" ] && break
             if [ $player != mpv ] && [ $player != mpv.exe ]; then
                 send_notification "Please only select Yes if you have finished watching the episode" "5000"
                 binge_watching=$(printf "Yes\nNo" | launcher "Do you want to keep binge watching? [Y/n] ")
